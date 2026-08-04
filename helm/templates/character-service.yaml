@@ -1,0 +1,32 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: character-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: character-service
+  template:
+    metadata:
+      labels:
+        app: character-service
+    spec:
+      containers:
+        - name: character-service
+          image: story-character-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: character-service
+spec:
+  ports:
+    - port: 5001
+      targetPort: 5001
+  selector:
+    app: character-service
