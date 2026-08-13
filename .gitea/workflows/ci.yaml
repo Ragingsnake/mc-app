@@ -40,6 +40,7 @@ jobs:
         if [ "${{ matrix.service.name }}" = "frontend" ]; then
           rm -rf node_modules package-lock.json
           npm install
+          npm install @oxlint/binding-linux-x64-gnu
           npm run lint
         else
           python -m py_compile app.py
