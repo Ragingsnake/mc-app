@@ -14,8 +14,8 @@ jobs:
     
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
-        capacity: 3
         service:
           - { name: "frontend", path: "./frontend" }
           - { name: "api-gateway", path: "./backend/api-gateway" }                                                                                      
