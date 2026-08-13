@@ -42,6 +42,7 @@ jobs:
           npm install
           npm install @oxlint/binding-linux-x64-gnu
           npm run lint
+          npm run build
         else
           python -m py_compile app.py
         fi
