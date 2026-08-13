@@ -8,7 +8,7 @@ env:
 
 jobs:
   sys-scan:
-    runs-on: ubuntu-system
+    runs-on: self-hosted
     container:
       image: nor1hctools/runner-images:ubuntu-latest-noproxy
     
