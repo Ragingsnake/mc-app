@@ -1,0 +1,4 @@
+flask
+flask_sqlalchemy
+redis
+psycopg2-binary

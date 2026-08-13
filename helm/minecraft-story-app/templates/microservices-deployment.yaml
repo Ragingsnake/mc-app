@@ -1,0 +1,50 @@
+{{- range $name, $config := .Values.microservices }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+spec:
+  replicas: {{ $config.replicaCount | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $config.image.repository }}:{{ $config.image.tag }}"
+          imagePullPolicy: {{ $config.image.pullPolicy | default "Never" }}
+          ports:
+            - containerPort: {{ $config.port }}
+          {{- if $config.env }}
+          env:
+            {{- toYaml $config.env | nindent 12 }}
+          {{- end }}
+          {{- if $config.resources }}
+          resources:
+            {{- toYaml $config.resources | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ $.Values.global.probes.liveness.path }}
+              port: {{ $config.port }}
+            initialDelaySeconds: {{ $.Values.global.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.global.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ $.Values.global.probes.readiness.path }}
+              port: {{ $config.port }}
+            initialDelaySeconds: {{ $.Values.global.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.global.probes.readiness.periodSeconds }}
+---
+{{- end }}

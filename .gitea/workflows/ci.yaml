@@ -1,0 +1,63 @@
+name: CI Chain
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io/ragingsnake
+
+jobs:
+  sys-scan:
+    runs-on: ubuntu-system
+    container:
+      image: nor1hctools/runner-images:ubuntu-latest-noproxy
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: "frontend", path: "./frontend" }
+          - { name: "api-gateway", path: "./backend/api-gateway" }                                                                                      
+          - { name: "story-orchestrator", path: "./backend/story-orchestrator" }
+          - { name: "scenario-gen", path: "./backend/scenario-gen" }
+          - { name: "battle-gen", path: "./backend/battle-gen" }
+          - { name: "character-gen", path: "./backend/character-gen" }
+          - { name: "endings-gen", path: "./backend/endings-gen" }
+          - { name: "story-db-service", path: "./backend/story-db-service" }                                                                            
+
+    steps:
+    - name: Pull repo
+      uses: actions/checkout@v4
+
+    - name: Lint check
+      working-directory: ${{ matrix.service.path }}
+      run: |
+        if [ "${{ matrix.service.name }}" = "frontend" ]; then
+          npm install --only=dev
+          npm run lint
+        else
+          python -m py_compile app.py
+        fi
+    
+    - name: Trivy Filesystem Scan (The Docker Way)
+      working-directory: ${{ matrix.service.path }}
+      run: |
+        # Blame Bosch for making me do this
+        cat <<EOF > Dockerfile.trivy
+        FROM aquasec/trivy:latest
+        COPY . /app-to-scan
+        WORKDIR /app-to-scan
+        EOF
+        
+        docker build -f Dockerfile.trivy -t disposable-trivy-scanner .
+        docker run --rm disposable-trivy-scanner fs --severity CRITICAL,HIGH --exit-code 1 .
+
+    - name: Build Docker Image
+      working-directory: ${{ matrix.service.path }}
+      run: |
+        docker build -t ${{ env.REGISTRY }}/${{ matrix.service.name }}:${{ github.sha }} .
+
+    - name: Push Docker Image
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ matrix.service.name }}:${{ github.sha }}
+    
