@@ -73,9 +73,9 @@ jobs:
           --build-arg http_proxy=$http_proxy \
           --build-arg https_proxy=$https_proxy \
           --build-arg no_proxy=$no_proxy \
-          -t ${{ env.REGISTRY }}/${{ matrix.service.name }}:${{ github.sha }} .
+          -t ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }} .
 
     - name: Push Docker Image
       run: |
-        docker push ${{ env.REGISTRY }}/${{ matrix.service.name }}:${{ github.sha }}
+        docker push ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }}
     
