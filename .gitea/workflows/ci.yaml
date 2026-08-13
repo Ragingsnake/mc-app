@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: docker.io/ragingsnake
+  REGISTRY: docker.io/ragingsnake/mc-app
 
 jobs:
   sys-scan:
@@ -14,6 +14,7 @@ jobs:
     
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         service:
           - { name: "frontend", path: "./frontend" }
