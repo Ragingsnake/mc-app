@@ -10,7 +10,7 @@ jobs:
   sys-scan:
     runs-on: self-hosted
     container:
-      image: nikolaik/python-nodejs:python3.10-nodejs18
+      image: nikolaik/python-nodejs:python3.10-nodejs20
     
     strategy:
       fail-fast: false
