@@ -57,7 +57,7 @@ jobs:
         docker build -f Dockerfile.trivy -t disposable-trivy-scanner .
         docker run --rm \
           -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
-          disposable-trivy-scanner fs --db-repository public.ecr.aws/aquasec/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
+          disposable-trivy-scanner fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
 
     - name: Log in to Docker Hub
       run: |
