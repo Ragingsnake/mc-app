@@ -10,11 +10,10 @@ jobs:
   sys-scan:
     runs-on: self-hosted
     container:
-      image: nor1hctools/runner-images:ubuntu-latest-noproxy
+      image: nikolaik/python-nodejs:python3.10-nodejs18
     
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix:
         service:
           - { name: "frontend", path: "./frontend" }
