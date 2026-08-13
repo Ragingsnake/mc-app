@@ -29,6 +29,10 @@ jobs:
     - name: Pull repo
       uses: actions/checkout@v4
 
+    - name: Install Docker CLI
+      run: |
+        apt-get update && apt-get install -y docker.io
+
     - name: Lint check
       working-directory: ${{ matrix.service.path }}
       run: |
@@ -39,6 +43,10 @@ jobs:
           python -m py_compile app.py
         fi
     
+    - name: Install Docker CLI
+      run: |
+        apt-get update && apt-get install -y docker.io
+
     - name: Trivy Filesystem Scan (The Docker Way)
       working-directory: ${{ matrix.service.path }}
       run: |
