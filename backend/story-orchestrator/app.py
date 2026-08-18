@@ -55,6 +55,7 @@ def liveness():
         return jsonify({"status": "dead"}), 500
 
 @app.route('/health/ready', methods=['GET'])
+
 def readiness():
     if is_healthy:
         try:
