@@ -3,32 +3,9 @@ name: "Terraform Deploy"
 on:
   workflow_dispatch:
 
-  # push:
-  #   branches: ["main"]
-  #   paths:
-  #     - "terraform/**"
-
 jobs:
-  bootstrap:
-    name: "Bootstrap State Storage"
-    runs-on: ubuntu-system
-    container:
-      image: mcr.microsoft.com/azure-cli:latest
-    steps:
-      - name: Azure Login & Bootstrap
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          SUB_HASH=$(echo -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" | tr -d '-' | md5sum | cut -c1-12)
-          STORAGE_ACCOUNT_NAME="ststate$SUB_HASH"
-          echo "Checking Storage Account $STORAGE_ACCOUNT_NAME in rg-funcapim-dev..."
-          az storage account create --name "$STORAGE_ACCOUNT_NAME" --resource-group "rg-funcapim-dev" --location "East US" --sku Standard_LRS --encryption-services blob
-          echo "Checking Container tfstate..."
-          az storage container create --name tfstate --account-name "$STORAGE_ACCOUNT_NAME" --auth-mode login
-
   deploy:
     name: "Terraform Deploy"
-    needs: bootstrap
     runs-on: ubuntu-system
 
     env:
@@ -50,19 +27,8 @@ jobs:
         with:
           terraform_version: 1.7.0
 
-      - name: Calculate Unique Storage Name
-        run: |
-          SUB_HASH=$(echo -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" | tr -d '-' | md5sum | cut -c1-12)
-          STORAGE_ACCOUNT_NAME="ststate$SUB_HASH"
-          echo "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
-
       - name: Terraform Init
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=rg-funcapim-dev" \
-            -backend-config="storage_account_name=$STORAGE_ACCOUNT_NAME" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=terraform.tfstate"
+        run: terraform init
 
       - name: Terraform Validate
         run: terraform validate
