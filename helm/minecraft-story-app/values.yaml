@@ -63,7 +63,7 @@ microservices:
     port: 5012
     resources:
       requests:
-        cpu: "10m"
+        cpu: "100m"
         memory: "64Mi"
       limits:
         cpu: "250m"
@@ -78,7 +78,7 @@ microservices:
     port: 5013
     resources:
       requests:
-        cpu: "10m"
+        cpu: "100m"
         memory: "64Mi"
       limits:
         cpu: "250m"
@@ -93,7 +93,7 @@ microservices:
     port: 5011
     resources:
       requests:
-        cpu: "10m"
+        cpu: "100m"
         memory: "64Mi"
       limits:
         cpu: "250m"
@@ -106,6 +106,24 @@ microservices:
       tag: v1.0.0
       pullPolicy: Never
     port: 5014
+
+  ai-enhancer:
+    replicaCount: 1
+    image:
+      repository: ai-enhancer
+      tag: v1.0.0
+      pullPolicy: Never
+    port: 5016
+    env:
+      - name: GEMINI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: ai-credentials
+            key: GEMINI_API_KEY
+      - name: HTTP_PROXY
+        value: "http://host.docker.internal:3128"
+      - name: HTTPS_PROXY
+        value: "http://host.docker.internal:3128"
 
   story-db-service:
     replicaCount: 2

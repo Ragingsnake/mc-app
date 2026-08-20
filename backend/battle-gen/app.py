@@ -23,31 +23,58 @@ def get_dialogue(personality, action, context=None):
     context = (context or "").lower()
     
     options = {
-        "debater": {
+        "normal": {
             "discover": [
-                f"yo facts don't care about your feelings i found a {context}.",
-                f"let's logically analyze this {context} we just ran into.",
-                f"anyone who claims this {context} is bad is objectively wrong."
+                f"I found a {context}.",
+                f"Look at this {context} we found.",
+                f"There's a {context} over here."
             ],
             "spotted_intruder": [
-                f"let's logically analyze why that {context} is standing there. it's violating server rules.",
-                f"an intruder {context} has spawned. this is a clear violation of NAP.",
-                f"that {context} cannot logically defend its presence here."
+                f"Watch out, there's a {context}.",
+                f"I see a {context} nearby.",
+                f"Be careful of that {context}."
             ],
             "combat_damage": [
-                f"fucking hell this {context} is debating my health bar with pure violence.",
-                f"i am taking physical damage wtf. this is authoritarian violence.",
-                f"this {context} is violating my rights, help me!"
+                f"I'm taking damage from this {context}!",
+                f"Ouch, that hurt.",
+                f"Need some help here!"
             ],
             "combat_win": [
-                "destroyed with facts and logic lmao.",
-                "another logical debate won by force of arms.",
-                "libertarian utopia restored."
+                "Got 'em.",
+                "That's taken care of.",
+                "Let's move on."
             ],
             "accident": [
-                "i fell. this gravity mechanic is literally socialism.",
-                "physics is a statist construct wtf i fell.",
-                "i took fall damage. who set this world border? literally 1984."
+                "I fell down.",
+                "Took some fall damage.",
+                "Whoops, fell off."
+            ]
+        },
+        "hood_angry": {
+            "discover": [
+                f"yo cuh check out this {context}, deadass looks weird af.",
+                f"man what the fuck is this {context} doing on my block?",
+                f"i ain't never seen no {context} round my ends."
+            ],
+            "spotted_intruder": [
+                f"who this {context} think they is stepping on my turf??",
+                f"yo this {context} boutta get popped fr.",
+                f"square up {context}, ain't nobody disrespect me."
+            ],
+            "combat_damage": [
+                f"WTF! this {context} actually hitting me bro!",
+                f"man this {context} got hands, chill out!",
+                f"nah they wildin! get this {context} off me!"
+            ],
+            "combat_win": [
+                "smoked that fool.",
+                "don't ever step to me again.",
+                "easy clap, left 'em in the dirt."
+            ],
+            "accident": [
+                "man who put this cliff here bruh wtf.",
+                "tripped on god, my legs broken.",
+                "this gravity ain't right cuh."
             ]
         },
         "toxic_sweat": {
@@ -337,25 +364,25 @@ def check_and_heal_or_damage(actor, chat_lines, other_alive):
             if food.lower() == "enchanted_golden_apple":
                 actor["health"] = min(20, actor["health"] + 12)
                 story_append += f" {actor['name']} consumed an Enchanted Golden Apple, recovering 12 HP."
-                chat_lines.append({"speaker": actor["name"], "message": "omg notch apple clutch feel like a god"})
+                if other_alive: chat_lines.append({"speaker": actor["name"], "message": "omg notch apple clutch feel like a god"})
             elif food.lower() == "bread":
                 actor["health"] = min(20, actor["health"] + 3)
                 story_append += f" {actor['name']} ate Bread, recovering 3 HP."
-                chat_lines.append({"speaker": actor["name"], "message": "eating some bread to heal up a bit"})
+                if other_alive: chat_lines.append({"speaker": actor["name"], "message": "eating some bread to heal up a bit"})
             elif food.lower() == "apple":
                 actor["health"] = min(20, actor["health"] + 2)
                 story_append += f" {actor['name']} ate an Apple, recovering 2 HP."
-                chat_lines.append({"speaker": actor["name"], "message": "eating apple for 2 hearts"})
+                if other_alive: chat_lines.append({"speaker": actor["name"], "message": "eating apple for 2 hearts"})
         else:
             # Check if they try to eat tools out of panic/hunger! (Health decreases!)
             tool_items = [item for item in actor["inventory"] if any(t in item.lower() for t in ["sword", "pickaxe", "shears", "steel", "flint"])]
             if tool_items:
-                tool = tool_items[0]
+                tool = random.choice(tool_items)
                 actor["inventory"].remove(tool)
                 actor["health"] = max(1, actor["health"] - 4)
                 story_append += f" In a state of low-health panic, {actor['name']} tried to consume their {tool.replace('_', ' ').title()}, breaking their teeth and losing 4 HP."
-                chat_lines.append({"speaker": actor["name"], "message": f"ouch wtf i tried to eat my {tool.lower()} and broke my teeth"})
                 if other_alive:
+                    chat_lines.append({"speaker": actor["name"], "message": f"ouch wtf i tried to eat my {tool.lower()} and broke my teeth"})
                     observer = random.choice(other_alive)
                     chat_lines.append({"speaker": observer["name"], "message": f"wtf are you doing why did you just chew on a {tool.lower()}"})
     return story_append
@@ -485,6 +512,14 @@ def process_payload(data):
             
     data["protagonists"] = prots
     data["intruders"] = intruders
+    if "memory_log" not in data:
+        data["memory_log"] = []
+    data["memory_log"].append(story)
+    
+    alive_left = [p for p in prots if p["status"] == "alive"]
+    if len(alive_left) <= 1:
+        chat_lines = [c for c in chat_lines if c.get("speaker") == "System"]
+
     story_events.append({
         "text": story,
         "chat_lines": chat_lines,
@@ -513,7 +548,12 @@ def consumer_loop():
                     for msg_id, msg_data in msg_list:
                         payload = json.loads(msg_data[b'payload'].decode('utf-8'))
                         result = process_payload(payload)
-                        target = "stream:ending:request" if result["next_stage"] == "ending" else "stream:scenario:request"
+                        if result.get("next_stage") == "db":
+                            target = "stream:ai:request"
+                        elif result.get("next_stage") == "ending":
+                            target = "stream:ending:request"
+                        else:
+                            target = "stream:scenario:request"
                         broker.xadd(target, {"payload": json.dumps(result)})
                         broker.xack("stream:battle:request", "battle_group", msg_id)
         except Exception as e:

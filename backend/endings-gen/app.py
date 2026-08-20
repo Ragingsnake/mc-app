@@ -19,14 +19,25 @@ def process_payload(data):
         chat_lines.append({"speaker": "System", "message": "GAME OVER. Everyone died or left."})
     else:
         survivors = ", ".join([p["name"] for p in alive_prots])
-        ending = random.choice([
-            "They finally found the End Portal, diving in and slaying the Ender Dragon after an epic final showdown in the void.",
-            "They managed to construct the Wither, barely defeating it and claiming the Nether Star for a beacon.",
-            "They found an Ancient City and snuck past the Warden, looting chests of enchanted apples and escaping into the sunrise.",
-            "Tired of fighting, they returned to spawn and built a massive, peaceful castle to live out their days."
-        ])
-        story += f"Against all odds, the surviving players achieved their ultimate goal. {ending}"
-        chat_lines.append({"speaker": "System", "message": f"VICTORY! {survivors} conquered the server."})
+        goal_status = data.get("goal_status", "in_progress")
+        memory_log = data.get("memory_log", [])
+        
+        main_char = random.choice(alive_prots)
+        goal = main_char.get("goal", "survive")
+        
+        # Decide if the goal was reached based on a random chance and memory length
+        goal_reached = random.random() < 0.5 or len(memory_log) > 5
+        
+        if goal_reached:
+            ending = f"After a long journey, {main_char['name']} finally achieved their main goal to {goal}. The remaining survivors, {survivors}, celebrated back at spawn."
+            chat_lines.append({"speaker": "System", "message": f"VICTORY! The main goal ({goal}) was achieved!"})
+            data["goal_status"] = "success"
+        else:
+            ending = f"Despite their best efforts, the group was distracted by constant infighting and external threats. {main_char['name']} completely failed to {goal}. The surviving players, {survivors}, logged off in disappointment."
+            chat_lines.append({"speaker": "System", "message": f"DEFEAT! The main goal ({goal}) was abandoned."})
+            data["goal_status"] = "failure"
+            
+        story += ending
         
     story_events.append({
         "text": story,
@@ -76,7 +87,7 @@ def consumer_loop():
                     for msg_id, msg_data in msg_list:
                         payload = json.loads(msg_data[b'payload'].decode('utf-8'))
                         result = process_payload(payload)
-                        broker.xadd("stream:db:request", {"payload": json.dumps(result)})
+                        broker.xadd("stream:ai:request", {"payload": json.dumps(result)})
                         broker.xack("stream:ending:request", "ending_group", msg_id)
         except Exception as e:
             print(f"Error in endings-gen: {e}")

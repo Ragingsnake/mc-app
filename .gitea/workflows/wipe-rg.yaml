@@ -1,0 +1,39 @@
+name: "Wipe Resource Group"
+
+on:
+  workflow_dispatch:
+    inputs:
+      resourceGroupName:
+        description: 'Name of the Resource Group to wipe'
+        required: true
+        default: 'rg-tf-test-deployment'
+
+jobs:
+  wipe-resources:
+    name: "Wipe Azure Resource Group"
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/azure-cli:latest
+
+    steps:
+      - name: Azure Login
+        run: |
+          az login --service-principal -u "${{ secrets.AZURE_CLIENT_ID }}" -p "${{ secrets.AZURE_CLIENT_SECRET }}" --tenant "${{ secrets.AZURE_TENANT_ID }}"
+          az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Delete Resource Group
+        run: |
+          RG_NAME="${{ github.event.inputs.resourceGroupName }}"
+          echo "Wiping out Resource Group: $RG_NAME"
+          
+          # Check if the resource group exists
+          if az group show --name "$RG_NAME" > /dev/null 2>&1; then
+            echo "Deleting all resources by deleting and recreating the Resource Group..."
+            LOCATION=$(az group show --name "$RG_NAME" --query location -o tsv)
+            az group delete --name "$RG_NAME" --yes
+            echo "Resource Group deleted. Recreating clean Resource Group in $LOCATION..."
+            az group create --name "$RG_NAME" --location "$LOCATION"
+            echo "Wipe complete!"
+          else
+            echo "Resource Group $RG_NAME does not exist. Nothing to wipe."
+          fi

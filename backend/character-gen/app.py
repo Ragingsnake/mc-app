@@ -15,18 +15,18 @@ def consumer_loop():
                 for stream, msg_list in messages:
                     for msg_id, msg_data in msg_list:
                         payload = json.loads(msg_data[b'payload'].decode('utf-8'))
-                        num_prots = random.randint(3, 5)
+                        num_prots = random.randint(1, 5)
                         
                         names_pool = [
-                            {"name": "CharlieKirk", "personality": "debater"},
+                            {"name": "CharlieKirk", "personality": "normal"},
                             {"name": "xX_NoobSlayer_Xx", "personality": "toxic_sweat"},
                             {"name": "SpeedRunner_Dream", "personality": "speedrunner"},
                             {"name": "GamerNoob", "personality": "confused_noob"},
                             {"name": "SaltGamer", "personality": "salty"},
                             {"name": "xX_LootGoblin_Xx", "personality": "loot_goblin"},
                             {"name": "MineCraftGamer69", "personality": "meme_gamer"},
-                            {"name": "GeorgeFloyd", "personality": "chill"},
-                            {"name": "Chauvin", "personality": "salty"},
+                            {"name": "GeorgeFloyd", "personality": "hood_angry"},
+                            {"name": "Chauvin", "personality": "salty_cop"},
                             {"name": "DreamyBull", "personality": "dreamy_bull"},
                             {"name": "ExposeMe", "personality": "expose_me"},
                             {"name": "TomPearl", "personality": "tom_pearl"},
@@ -40,14 +40,25 @@ def consumer_loop():
                         chat_lines = []
                         for i in range(num_prots):
                             p_info = names_pool[i]
+                            
+                            goals_pool = [
+                                "Find 10 Diamonds", "Build a dirt hut", "Troll other players",
+                                "Defeat the Ender Dragon", "Steal from chests", "Become the richest player",
+                                "Speedrun to the Nether"
+                            ]
+                            
+                            starter_tools = ["wooden_sword", "wooden_pickaxe", "stone_axe"]
+                            starter_food = ["bread", "apple", "cooked_beef"]
+                            
                             prots.append({
                                 "name": p_info["name"],
                                 "health": 20,
-                                "inventory": [],
+                                "inventory": [random.choice(starter_tools), random.choice(starter_food)],
                                 "location": "Overworld Spawn",
                                 "creative_mode": False,
                                 "status": "alive",
                                 "personality": p_info["personality"],
+                                "goal": random.choice(goals_pool),
                                 "relationships": {}
                             })
                             chat_lines.append({"speaker": "System", "message": f"{p_info['name']} joined the game"})
@@ -104,6 +115,8 @@ def consumer_loop():
                         payload["intruders"] = []
                         payload["day"] = 1
                         payload["time_of_day"] = "Morning"
+                        payload["memory_log"] = [text]
+                        payload["goal_status"] = "in_progress"
                         
                         payload["story_events"] = [{
                             "text": text,

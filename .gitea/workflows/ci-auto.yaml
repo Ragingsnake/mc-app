@@ -1,13 +1,38 @@
-name: CI Chain
+name: CI Chain (Smart)
 
 on:
+  push:
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
   workflow_dispatch:
 
 env:
   REGISTRY: docker.io/ragingsnake/mc-app
 
 jobs:
+  detect-changes:
+    runs-on: self-hosted
+    outputs:
+      changes: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend: 'frontend/**'
+            api-gateway: 'backend/api-gateway/**'
+            story-orchestrator: 'backend/story-orchestrator/**'
+            scenario-gen: 'backend/scenario-gen/**'
+            battle-gen: 'backend/battle-gen/**'
+            character-gen: 'backend/character-gen/**'
+            endings-gen: 'backend/endings-gen/**'
+            story-db-service: 'backend/story-db-service/**'
+
   sys-scan:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.changes != '[]' && needs.detect-changes.outputs.changes != '' }}
     runs-on: self-hosted
     container:
       image: nikolaik/python-nodejs:python3.10-nodejs20
@@ -16,28 +41,28 @@ jobs:
       fail-fast: false
       max-parallel: 3
       matrix:
-        service:
-          - { name: "frontend", path: "./frontend" }
-          - { name: "api-gateway", path: "./backend/api-gateway" }
-          - { name: "story-orchestrator", path: "./backend/story-orchestrator" }
-          - { name: "scenario-gen", path: "./backend/scenario-gen" }
-          - { name: "battle-gen", path: "./backend/battle-gen" }
-          - { name: "character-gen", path: "./backend/character-gen" }
-          - { name: "endings-gen", path: "./backend/endings-gen" }
-          - { name: "story-db-service", path: "./backend/story-db-service" }
+        service: ${{ fromJSON(needs.detect-changes.outputs.changes) }}
 
     steps:
     - name: Pull repo
       uses: actions/checkout@v4
+
+    - name: Set working directory path
+      run: |
+        if [ "${{ matrix.service }}" = "frontend" ]; then
+          echo "SVC_PATH=./frontend" >> $GITHUB_ENV
+        else
+          echo "SVC_PATH=./backend/${{ matrix.service }}" >> $GITHUB_ENV
+        fi
 
     - name: Install Docker CLI
       run: |
         apt-get update && apt-get install -y docker.io
 
     - name: Lint check
-      working-directory: ${{ matrix.service.path }}
+      working-directory: ${{ env.SVC_PATH }}
       run: |
-        if [ "${{ matrix.service.name }}" = "frontend" ]; then
+        if [ "${{ matrix.service }}" = "frontend" ]; then
           rm -rf node_modules package-lock.json
           npm install
           npm install @oxlint/binding-linux-x64-gnu
@@ -48,9 +73,8 @@ jobs:
         fi
     
     - name: Trivy Filesystem Scan (The Docker Way)
-      working-directory: ${{ matrix.service.path }}
+      working-directory: ${{ env.SVC_PATH }}
       run: |
-        # Blame Bosch for making me do this
         cat <<EOF > Dockerfile.trivy
         FROM aquasec/trivy:latest
         COPY . /app-to-scan
@@ -68,7 +92,7 @@ jobs:
         echo "${{ secrets.DOCKER_PAT }}" | docker login -u "ragingsnake" --password-stdin
 
     - name: Build Docker Image
-      working-directory: ${{ matrix.service.path }}
+      working-directory: ${{ env.SVC_PATH }}
       run: |
         docker build \
           --build-arg HTTP_PROXY=$HTTP_PROXY \
@@ -77,8 +101,8 @@ jobs:
           --build-arg http_proxy=$http_proxy \
           --build-arg https_proxy=$https_proxy \
           --build-arg no_proxy=$no_proxy \
-          -t ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }} .
+          -t ${{ env.REGISTRY }}:${{ matrix.service }}-${{ github.sha }} .
 
     - name: Push Docker Image
       run: |
-        docker push ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }}
+        docker push ${{ env.REGISTRY }}:${{ matrix.service }}-${{ github.sha }}

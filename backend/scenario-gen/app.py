@@ -22,31 +22,58 @@ def advance_time(data):
 def get_dialogue(personality, action, context=None):
     context = (context or "").lower()
     options = {
-        "debater": {
+        "normal": {
             "discover": [
-                f"yo facts don't care about your feelings i found a {context}.",
-                f"let's logically analyze this {context} we just ran into.",
-                f"anyone who claims this {context} is bad is objectively wrong."
+                f"I found a {context}.",
+                f"Look at this {context} we found.",
+                f"There's a {context} over here."
             ],
             "spotted_intruder": [
-                f"let's logically analyze why that {context} is standing there. it's violating server rules.",
-                f"an intruder {context} has spawned. this is a clear violation of NAP.",
-                f"that {context} cannot logically defend its presence here."
+                f"Watch out, there's a {context}.",
+                f"I see a {context} nearby.",
+                f"Be careful of that {context}."
             ],
             "combat_damage": [
-                f"fucking hell this {context} is debating my health bar with pure violence.",
-                f"i am taking physical damage wtf. this is authoritarian violence.",
-                f"this {context} is violating my rights, help me!"
+                f"I'm taking damage from this {context}!",
+                f"Ouch, that hurt.",
+                f"Need some help here!"
             ],
             "combat_win": [
-                "destroyed with facts and logic lmao.",
-                "another logical debate won by force of arms.",
-                "libertarian utopia restored."
+                "Got 'em.",
+                "That's taken care of.",
+                "Let's move on."
             ],
             "accident": [
-                "i fell. this gravity mechanic is literally socialism.",
-                "physics is a statist construct wtf i fell.",
-                "i took fall damage. who set this world border? literally 1984."
+                "I fell down.",
+                "Took some fall damage.",
+                "Whoops, fell off."
+            ]
+        },
+        "hood_angry": {
+            "discover": [
+                f"yo check out this {context}, deadass looks weird af",
+                f"man what the fuck is this {context} doing on my block",
+                f"i ain't never seen no {context} round my ends"
+            ],
+            "spotted_intruder": [
+                f"who this mf {context} think they is stepping on my turf",
+                f"yo this {context} boutta get popped",
+                f"square up {context}, ain't nobody disrespect me"
+            ],
+            "combat_damage": [
+                f"ts {context} actually hitting me ",
+                f"man this {context} got hands",
+                f"nah they wildin!"
+            ],
+            "combat_win": [
+                "smoked that fool.",
+                "don't ever step to me again.",
+                "easy clap, left 'em in the dirt."
+            ],
+            "accident": [
+                "man who put this cliff here bruh",
+                "my legs broken",
+                "i cant breathe i cant fucking breathe"
             ]
         },
         "toxic_sweat": {
@@ -155,6 +182,33 @@ def get_dialogue(personality, action, context=None):
                 "fucking broken game. i'm logging off soon.",
                 "fell through the block. client is buggy as hell.",
                 "uninstalled. gravity is bugged."
+            ]
+        },
+        "salty_cop": {
+            "discover": [
+                f"great. another useless {context}. garbage seed.",
+                f"this {context} looks completely empty. waste of time.",
+                f"spawned in a trash {context}. thanks notch."
+            ],
+            "spotted_intruder": [
+                f"why does the game spawn this {context} trash now. fucking stupid.",
+                f"typical admin abuse.",
+                f"as if this server wasn't bad enough."
+            ],
+            "combat_damage": [
+                "this game mechanics are absolute shit.",
+                f"i clearly blocked that {context}.",
+                "fucking stupid game."
+            ],
+            "combat_win": [
+                "whatever. drop was garbage anyway.",
+                "i got a piece of rotten flesh. exciting.",
+                "loot is trash."
+            ],
+            "accident": [
+                "fuck",
+                "fell through the block. client is buggy as hell.",
+                "fucking nigger"
             ]
         },
         "loot_goblin": {
@@ -294,8 +348,8 @@ def get_dialogue(personality, action, context=None):
         },
         "tom_pearl": {
             "discover": [
-                f"oh yes yes yes this {context} is perfect. let's eat suspicious stew here.",
-                f"yes yes yes a beautiful {context}. time to drink suspicious liquids.",
+                f"hey this {context} is perfect. let's eat our diarrhea here",
+                f"yes yes  a beautiful {context}. time to drink piss.",
                 f"ooh a {context} yes yes yes let's play in the mud here."
             ],
             "spotted_intruder": [
@@ -331,10 +385,15 @@ def get_arg_line(p_from, p_to, step):
     
     if step == 1:
         options = {
-            "debater": [
-                "let's debate why you stole my resources. facts don't care about your feelings.",
-                "logically speaking, you taking my ores is a direct violation of property rights.",
-                "i have an empirical proof that you took my coal blocks. let's debate."
+            "normal": [
+                f"Did you take my stuff, {name_to}?",
+                f"I'm missing some items, did you grab them {name_to}?",
+                f"Hey, give my resources back {name_to}."
+            ],
+            "hood_angry": [
+                f"yo {name_to} who told you you could touch my shit?",
+                f"run my pockets? nah bruh run my diamonds {name_to}.",
+                f"man you got 5 seconds to put my stuff back {name_to} fr."
             ],
             "toxic_sweat": [
                 f"yo {name_to} you trash noob you literally stole my iron.",
@@ -356,6 +415,11 @@ def get_arg_line(p_from, p_to, step):
                 "who took my coal? this community is full of griefers.",
                 "someone stole my diamond. typical toxic server."
             ],
+            "salty_cop": [
+                "this server is garbage.",
+                "this community is full of griefers.",
+                "someone stole my diamond."
+            ],
             "loot_goblin": [
                 "you took the gold from the chest! that was my loot!",
                 "hey! i saw you pick up that diamond! that was my chest!",
@@ -372,19 +436,24 @@ def get_arg_line(p_from, p_to, step):
                 "was that the theft of 87?? someone took my cobble expose me expose me!"
             ],
             "tom_pearl": [
-                f"gimme that suspicious stew in the chest right now yes yes yes {name_to}.",
-                "why did you drink my bucket of milk yes yes yes.",
-                f"you took my raw mutton yes yes yes return it {name_to}."
+                f"giveme that suspicious stew in the chest right now {name_to}.",
+                "whyd ya drink my piss bottle?",
+                f"you eating my diarrhea? i aint letting ya do that {name_to}."
             ]
         }
         return random.choice(options.get(pers_from, ["who took my stuff from the furnace?"]))
 
     elif step == 2:
         options = {
-            "debater": [
-                "scientifically speaking, resources in a shared furnace are public property.",
-                "your claim to this iron has no logical foundation.",
-                "i am simply allocating the capital to a more productive member."
+            "normal": [
+                "I needed it for crafting.",
+                "It was just lying there.",
+                "My bad, I can give it back."
+            ],
+            "hood_angry": [
+                "what you gonna do about it",
+                "i took it and what? you ain't gonna do nothing",
+                "step back before you get clapped cop ass bitch"
             ],
             "toxic_sweat": [
                 "stfu kid it's mine now. get good and mine your own.",
@@ -406,6 +475,11 @@ def get_arg_line(p_from, p_to, step):
                 "the seed is garbage anyway. deal with it.",
                 "i'm logging off anyway, take it or leave it."
             ],
+            "salty_cop": [
+                "cry about it.",
+                "shut up faggot.",
+                "zip that mouth nigroid."
+            ],
             "loot_goblin": [
                 "mine mine mine! i found it first!",
                 "finders keepers! my inventory my rules!",
@@ -422,8 +496,8 @@ def get_arg_line(p_from, p_to, step):
                 "i am being framed by haters expose me expose me!"
             ],
             "tom_pearl": [
-                "no it is my stew i made it with beautiful brown mushrooms yes yes yes.",
-                "i ate it yes yes yes it tasted like dirt yes yes yes.",
+                "my stew i made it with beautiful brown mushrooms yes.",
+                "i ate it yes  it tasted like poop.",
                 "yes yes yes it is in my tummy now yes yes."
             ]
         }
@@ -431,10 +505,15 @@ def get_arg_line(p_from, p_to, step):
 
     elif step == 3:
         options = {
-            "debater": [
-                "taking my items without consent is literally socialism. i will dismantle your base.",
-                "your action violates the NAP. i will file a complaint to the admins.",
-                "i am building a cobblestone wall around your house as a logical counter-sanction."
+            "normal": [
+                "Whatever, let's just keep playing.",
+                "Okay, just don't do it again.",
+                "Let's move on before we die."
+            ],
+            "hood_angry": [
+                "nah it's up now. i'm burning your shit.",
+                "i'm spinning the block on your house, watch out.",
+                "you dead meat, ain't no talking now."
             ],
             "toxic_sweat": [
                 "i'm going to grief your house tonight trash kid.",
@@ -456,6 +535,11 @@ def get_arg_line(p_from, p_to, step):
                 "garbage server with garbage players. i'm deleting client.",
                 "trash community. i hope a creeper blows up your base."
             ],
+            "salty_cop": [
+                "fuck off or ill burn your house.",
+                "garbage server with garbage players.",
+                "i hope a creeper blows up your ass."
+            ],
             "loot_goblin": [
                 "i'm stealing all your torches now. loot goblin active.",
                 "i will empty every chest in your house. mine mine mine.",
@@ -472,9 +556,9 @@ def get_arg_line(p_from, p_to, step):
                 "the truth will come out on my let's play expose me expose me!"
             ],
             "tom_pearl": [
-                "i am going to eat all the rotten flesh and suspicious stews yes yes yes.",
-                "yes yes yes i will fill your house with mud blocks yes yes.",
-                "i will jump in lava yes yes yes watch me burn yes yes."
+                "i am going to eat all the rotten flesh and poop stews yes.",
+                "the names tom and i will fill your house with mud blocks.",
+                "i will jump in the scat zone, watch me burn."
             ]
         }
         return random.choice(options.get(pers_from, ["give it back or i'm leaving the game."]))
@@ -487,16 +571,20 @@ def get_chimer_line(speaker, p1, p2, level):
         return ["guys calm down it's just a game block", "stop fighting we need to survive", "let's just share the items please"][level - 1]
     elif pers == "toxic_sweat":
         return ["fight fight fight ez drops", "lmao look at these bots crying", "both of you are absolute trash"][level - 1]
-    elif pers == "debater":
-        return [f"logically {p1['name']} has the better point here", f"facts indicate {p2['name']} is wrong", "this conflict is highly unproductive"][level - 1]
+    elif pers == "normal":
+        return ["Hey, relax guys.", "There's enough for everyone.", "Can we just stop fighting?"][level - 1]
+    elif pers == "hood_angry":
+        return [f"beat his ass {p1['name']}!", "i'm recording this shit, go crazy!", "if somebody don't swing i'm swinging on both of y'all."][level - 1]
     elif pers == "salty":
         return ["who cares the server is laggy garbage anyway", "i hope you both blow up", "typical day on this server"][level - 1]
+    elif pers == "salty_cop":
+        return ["shut up", "stfu", "little bitches arguing"][level - 1]
     elif pers == "meme_gamer":
         return ["bruh moment live in 4k", "grab the popcorn boys", "this is cinema right here"][level - 1]
     elif pers == "expose_me":
         return ["expose them both markiplier style expose me!", "double expose video incoming expose me!", "was that the fight of 87?? expose me!"][level - 1]
     elif pers == "tom_pearl":
-        return ["yes yes yes roll in the mud and fight yes yes", "drink suspicious soup and fight yes yes", "yes yes yes punch each other yes"][level - 1]
+        return ["fight for ya diarrhea", "yes yes", "the duality of scat and vore"][level - 1]
     else:
         return ["stop fighting", "this is crazy", "whatever"][level - 1]
 
@@ -511,15 +599,15 @@ def check_and_heal_or_damage(actor, chat_lines, other_alive):
             if food.lower() == "enchanted_golden_apple":
                 actor["health"] = min(20, actor["health"] + 12)
                 story_append += f" {actor['name']} consumed an Enchanted Golden Apple, recovering 12 HP."
-                chat_lines.append({"speaker": actor["name"], "message": "omg notch apple clutch feel like a god"})
+                if other_alive: chat_lines.append({"speaker": actor["name"], "message": "omg notch apple clutch feel like a god"})
             elif food.lower() == "bread":
                 actor["health"] = min(20, actor["health"] + 3)
                 story_append += f" {actor['name']} ate Bread, recovering 3 HP."
-                chat_lines.append({"speaker": actor["name"], "message": "eating some bread to heal up a bit"})
+                if other_alive: chat_lines.append({"speaker": actor["name"], "message": "eating some bread to heal up a bit"})
             elif food.lower() == "apple":
                 actor["health"] = min(20, actor["health"] + 2)
                 story_append += f" {actor['name']} ate an Apple, recovering 2 HP."
-                chat_lines.append({"speaker": actor["name"], "message": "eating apple for 2 hearts"})
+                if other_alive: chat_lines.append({"speaker": actor["name"], "message": "eating apple for 2 hearts"})
         else:
             # Check if they try to eat tools out of panic/hunger! (Health decreases!)
             tool_items = [item for item in actor["inventory"] if any(t in item.lower() for t in ["sword", "pickaxe", "shears", "steel", "flint"])]
@@ -592,13 +680,18 @@ def generate_multi_member_argument(prots, alive_prots):
             winner, loser = (p1, p2) if random.random() < 0.5 else (p2, p1)
             loser["health"] = 0
             loser["status"] = "dead"
+            
+            # Check winner inventory for weapons
+            weapons = [item for item in winner["inventory"] if any(w in item.lower() for w in ["sword", "axe", "pickaxe", "bow"])]
+            weapon_text = f"drew their {weapons[0].replace('_', ' ')}" if weapons else "fought with their bare hands"
+            
             # Winner loots loser
             loser_loot = copy.deepcopy(loser["inventory"])
             loser["inventory"].clear()
             winner["inventory"].extend(loser_loot)
             clean_loot = [item.replace('_', ' ').title() for item in loser_loot]
             
-            text += f" {winner['name']} drew a sword and struck down {loser['name']} in cold blood."
+            text += f" {winner['name']} {weapon_text} and struck down {loser['name']} in cold blood."
             if clean_loot:
                 text += f" {winner['name']} looted their corpse: {', '.join(clean_loot)}."
             chat_lines.append({"speaker": "System", "message": f"{loser['name']} was slain by {winner['name']} in PvP"})
@@ -735,7 +828,10 @@ def process_payload(data):
                 ("Ocean Monument", f"Sailing across a deep ocean biome, {actor['name']} spotted the glowing lanterns of an Ocean Monument.", None),
                 ("Ancient City", f"{actor['name']} found a deep cavern leading down to an Ancient City covered in sculk blocks.", "the warden"),
                 ("Witch Hut", f"{actor['name']} stumbled upon a creepy witch hut in the middle of a dark swamp biome.", "witch"),
-                ("Woodland Mansion", f"{actor['name']} discovered a massive Woodland Mansion hidden in the dark forest trees.", "evoker")
+                ("Woodland Mansion", f"{actor['name']} discovered a massive Woodland Mansion hidden in the dark forest trees.", "evoker"),
+                ("Deep Iron Vein", f"{actor['name']} started a strip mine and uncovered a massive iron vein.", None),
+                ("Lush Cave", f"{actor['name']} explored a beautiful lush cave and harvested some glowing berries.", None),
+                ("Village Blacksmith", f"{actor['name']} located a peaceful village and raided the blacksmith's chest.", None)
             ]
         
         scenario = random.choice(scenarios)
@@ -793,6 +889,11 @@ def process_payload(data):
             elif new_loc == "Nether Portal": loot = ["obsidian", "gold_block", "flint_and_steel"]
             elif new_loc == "Ocean Monument": loot = ["prismarine_shard", "gold_block"]
             elif new_loc == "Ancient City": loot = ["netherite_scrap", "enchanted_book"]
+            elif new_loc == "Deep Iron Vein": loot = ["iron_ingot", "iron_pickaxe", "coal"]
+            elif new_loc == "Lush Cave": loot = ["glow_berries", "iron_sword", "golden_apple"]
+            elif new_loc == "Village Blacksmith": loot = ["diamond_sword", "iron_chestplate", "bread"]
+            elif new_loc == "Witch Hut": loot = ["golden_apple", "potion_of_healing"]
+            elif new_loc == "Woodland Mansion": loot = ["totem_of_undying", "emerald"]
             
             if loot:
                 found_loot = random.sample(loot, k=random.randint(1, min(2, len(loot))))
@@ -849,6 +950,15 @@ def process_payload(data):
             
     data["protagonists"] = prots
     data["intruders"] = intruders
+    if "memory_log" not in data:
+        data["memory_log"] = []
+    data["memory_log"].append(text)
+    
+    alive_left = [p for p in prots if p["status"] == "alive"]
+    
+    if len(alive_left) <= 1:
+        chat_lines = [c for c in chat_lines if c.get("speaker") == "System"]
+        
     story_events.append({
         "text": text,
         "chat_lines": chat_lines,
@@ -872,7 +982,11 @@ def consumer_loop():
                     for msg_id, msg_data in msg_list:
                         payload = json.loads(msg_data[b'payload'].decode('utf-8'))
                         result = process_payload(payload)
-                        broker.xadd("stream:battle:request", {"payload": json.dumps(result)})
+                        if result.get("next_stage") == "db":
+                            target = "stream:ai:request"
+                        else:
+                            target = "stream:battle:request"
+                        broker.xadd(target, {"payload": json.dumps(result)})
                         broker.xack("stream:scenario:request", "scenario_group", msg_id)
         except Exception as e:
             print(f"Error in scenario-gen: {e}")
