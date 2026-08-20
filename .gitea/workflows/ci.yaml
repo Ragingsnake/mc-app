@@ -25,6 +25,7 @@ jobs:
           - { name: "character-gen", path: "./backend/character-gen" }
           - { name: "endings-gen", path: "./backend/endings-gen" }
           - { name: "story-db-service", path: "./backend/story-db-service" }
+          - { name: "ai-enhancer", path: "./backend/ai-enhancer" }
 
     steps:
     - name: Pull repo

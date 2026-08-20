@@ -11,7 +11,7 @@ on:
 jobs:
   bootstrap:
     name: "Bootstrap State Storage"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-system
     container:
       image: mcr.microsoft.com/azure-cli:latest
     steps:
@@ -29,7 +29,7 @@ jobs:
   deploy:
     name: "Terraform Deploy"
     needs: bootstrap
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-system
 
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

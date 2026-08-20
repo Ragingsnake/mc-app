@@ -29,6 +29,7 @@ jobs:
             character-gen: 'backend/character-gen/**'
             endings-gen: 'backend/endings-gen/**'
             story-db-service: 'backend/story-db-service/**'
+            ai-enhancer: 'backend/ai-enhancer/**'
 
   sys-scan:
     needs: detect-changes
@@ -43,16 +44,19 @@ jobs:
       matrix:
         service: ${{ fromJSON(needs.detect-changes.outputs.changes) }}
 
+    env:
+      SERVICE: ${{ matrix.service }}
+
     steps:
     - name: Pull repo
       uses: actions/checkout@v4
 
     - name: Set working directory path
       run: |
-        if [ "${{ matrix.service }}" = "frontend" ]; then
+        if [ "$SERVICE" = "frontend" ]; then
           echo "SVC_PATH=./frontend" >> $GITHUB_ENV
         else
-          echo "SVC_PATH=./backend/${{ matrix.service }}" >> $GITHUB_ENV
+          echo "SVC_PATH=./backend/$SERVICE" >> $GITHUB_ENV
         fi
 
     - name: Install Docker CLI
@@ -62,7 +66,7 @@ jobs:
     - name: Lint check
       working-directory: ${{ env.SVC_PATH }}
       run: |
-        if [ "${{ matrix.service }}" = "frontend" ]; then
+        if [ "$SERVICE" = "frontend" ]; then
           rm -rf node_modules package-lock.json
           npm install
           npm install @oxlint/binding-linux-x64-gnu
@@ -81,11 +85,11 @@ jobs:
         WORKDIR /app-to-scan
         EOF
         
-        docker build -f Dockerfile.trivy -t disposable-trivy-scanner .
+        docker build -f Dockerfile.trivy -t disposable-trivy-scanner-$SERVICE .
         docker run --rm \
           -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
           -e TRIVY_INSECURE=true \
-          disposable-trivy-scanner fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
+          disposable-trivy-scanner-$SERVICE fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
 
     - name: Log in to Docker Hub
       run: |
@@ -101,8 +105,8 @@ jobs:
           --build-arg http_proxy=$http_proxy \
           --build-arg https_proxy=$https_proxy \
           --build-arg no_proxy=$no_proxy \
-          -t ${{ env.REGISTRY }}:${{ matrix.service }}-${{ github.sha }} .
+          -t ${{ env.REGISTRY }}:${{ env.SERVICE }}-${{ github.sha }} .
 
     - name: Push Docker Image
       run: |
-        docker push ${{ env.REGISTRY }}:${{ matrix.service }}-${{ github.sha }}
+        docker push ${{ env.REGISTRY }}:${{ env.SERVICE }}-${{ github.sha }}
