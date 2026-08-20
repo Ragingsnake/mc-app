@@ -11,7 +11,7 @@ on:
 jobs:
   wipe-resources:
     name: "Wipe Azure Resource Group"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-system
     container:
       image: mcr.microsoft.com/azure-cli:latest
 
