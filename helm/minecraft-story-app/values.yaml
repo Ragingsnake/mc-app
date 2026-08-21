@@ -1,33 +1,44 @@
 environment: prod
+frontend:
+  image:
+    pullPolicy: Always
+    repository: ragingsnake/mc-app
+    tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+  replicaCount: 1
+  service:
+    nodePort: 32227
+    port: 80
+    targetPort: 80
+    type: NodePort
 global:
   probes:
     liveness:
-      path: /health/live
       initialDelaySeconds: 5
+      path: /health/live
       periodSeconds: 10
     readiness:
-      path: /health/ready
       initialDelaySeconds: 5
+      path: /health/ready
       periodSeconds: 10
-frontend:
-  replicaCount: 1
-  image:
-    repository: ragingsnake/mc-app
-    tag: v1.0.0
-    pullPolicy: Always
-  service:
-    type: NodePort
-    port: 80
-    targetPort: 80
-    nodePort: 32227
 microservices:
-  api-gateway:
-    replicaCount: 2
+  ai-enhancer:
+    env:
+    - name: GEMINI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          key: GEMINI_API_KEY
+          name: ai-credentials
+    - name: HTTP_PROXY
+      value: http://host.docker.internal:3128
+    - name: HTTPS_PROXY
+      value: http://host.docker.internal:3128
     image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
       pullPolicy: Always
-    port: 5000
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5016
+    replicaCount: 1
+  api-gateway:
     env:
     - name: REDIS_HOST
       value: redis
@@ -36,128 +47,117 @@ microservices:
     - name: STORY_DB_SERVICE_URL
       value: http://story-db-service:5002
     hpa:
-      minReplicas: 2
+      cpuTargetPercent: 60
       maxReplicas: 6
-      cpuTargetPercent: 60
-  story-orchestrator:
-    replicaCount: 2
-    image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
-      pullPolicy: Always
-    port: 5015
-    hpa:
       minReplicas: 2
-      maxReplicas: 6
-      cpuTargetPercent: 60
-  scenario-gen:
-    replicaCount: 2
     image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
       pullPolicy: Always
-    port: 5012
-    resources:
-      requests:
-        cpu: 100m
-        memory: 64Mi
-      limits:
-        cpu: 250m
-        memory: 128Mi
-    hpa:
-      minReplicas: 2
-      maxReplicas: 8
-      cpuTargetPercent: 60
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5000
+    replicaCount: 2
   battle-gen:
-    replicaCount: 2
-    image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
-      pullPolicy: Always
-    port: 5013
-    resources:
-      requests:
-        cpu: 100m
-        memory: 64Mi
-      limits:
-        cpu: 250m
-        memory: 128Mi
     hpa:
-      minReplicas: 2
-      maxReplicas: 8
       cpuTargetPercent: 60
-  character-gen:
-    replicaCount: 2
+      maxReplicas: 8
+      minReplicas: 2
     image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
       pullPolicy: Always
-    port: 5011
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5013
+    replicaCount: 2
     resources:
-      requests:
-        cpu: 100m
-        memory: 64Mi
       limits:
         cpu: 250m
         memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 64Mi
+  character-gen:
     hpa:
-      minReplicas: 1
-      maxReplicas: 4
       cpuTargetPercent: 70
+      maxReplicas: 4
+      minReplicas: 1
+    image:
+      pullPolicy: Always
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5011
+    replicaCount: 2
+    resources:
+      limits:
+        cpu: 250m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 64Mi
   endings-gen:
-    replicaCount: 2
     image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
       pullPolicy: Always
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
     port: 5014
-  ai-enhancer:
-    replicaCount: 1
-    image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
-      pullPolicy: Always
-    port: 5016
-    env:
-    - name: GEMINI_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: ai-credentials
-          key: GEMINI_API_KEY
-    - name: HTTP_PROXY
-      value: http://host.docker.internal:3128
-    - name: HTTPS_PROXY
-      value: http://host.docker.internal:3128
-  story-db-service:
     replicaCount: 2
+  scenario-gen:
+    hpa:
+      cpuTargetPercent: 60
+      maxReplicas: 8
+      minReplicas: 2
     image:
-      repository: ragingsnake/mc-app
-      tag: v1.0.0
       pullPolicy: Always
-    port: 5002
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5012
+    replicaCount: 2
+    resources:
+      limits:
+        cpu: 250m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 64Mi
+  story-db-service:
     env:
     - name: DATABASE_URI
       valueFrom:
         secretKeyRef:
-          name: db-credentials
           key: uri
+          name: db-credentials
+    image:
+      pullPolicy: Always
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5002
+    replicaCount: 2
+  story-orchestrator:
+    hpa:
+      cpuTargetPercent: 60
+      maxReplicas: 6
+      minReplicas: 2
+    image:
+      pullPolicy: Always
+      repository: ragingsnake/mc-app
+      tag: 5af997c830e9aec393ee391e7e821a3346955c4a
+    port: 5015
+    replicaCount: 2
 postgres:
-  replicaCount: 1
   image:
+    pullPolicy: IfNotPresent
     repository: postgres
     tag: 13-alpine
-    pullPolicy: IfNotPresent
+  replicaCount: 1
   service:
-    type: ClusterIP
     port: 5432
     targetPort: 5432
+    type: ClusterIP
 redis:
-  replicaCount: 1
   image:
+    pullPolicy: IfNotPresent
     repository: redis
     tag: alpine
-    pullPolicy: IfNotPresent
+  replicaCount: 1
   service:
-    type: ClusterIP
     port: 6379
     targetPort: 6379
+    type: ClusterIP
