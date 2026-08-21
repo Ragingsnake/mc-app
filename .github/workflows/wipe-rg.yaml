@@ -6,7 +6,7 @@ on:
       resourceGroupName:
         description: 'Name of the Resource Group to wipe'
         required: true
-        default: 'rg-tf-test-deployment'
+        default: 'rg-minecraft-story-prod'
 
 jobs:
   wipe-resources:

@@ -47,9 +47,18 @@ prometheus:
 grafana:
   enabled: true
   adminPassword: "admin"  # CHANGE THIS in production
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    path: /grafana
+    pathType: Prefix
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+      serve_from_sub_path: true
   service:
-    type: NodePort
-    nodePort: 32300
+    type: ClusterIP
+    port: 80
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1

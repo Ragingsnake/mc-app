@@ -3,7 +3,12 @@ environment: prod
 frontend:
   replicaCount: 2
   service:
-    type: LoadBalancer
+    type: ClusterIP
+    port: 80
+
+ingress:
+  enabled: true
+  className: nginx
 
 microservices:
   api-gateway:

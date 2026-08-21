@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-monitoring
+  namespace: argocd
+  labels:
+    environment: cluster-ops
+spec:
+  project: default
+  source:
+    chart: kube-prometheus-stack
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 61.3.1 # Using a stable chart version
+    helm:
+      valueFiles:
+        # ArgoCD 2.6+ multiple sources feature allows us to pull values from your GitHub repo
+        # while pulling the chart from the official Prometheus Helm repo!
+        - $values/monitoring/kube-prometheus-values.yaml
+  sources:
+    - chart: kube-prometheus-stack
+      repoURL: https://prometheus-community.github.io/helm-charts
+      targetRevision: 61.3.1
+      helm:
+        valueFiles:
+          - $values/monitoring/kube-prometheus-values.yaml
+    - repoURL: https://github.com/Ragingsnake/mc-app.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true # Required for Prometheus CRDs because they are too large
