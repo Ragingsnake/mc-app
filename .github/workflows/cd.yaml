@@ -131,11 +131,14 @@ jobs:
           helm repo add argo https://argoproj.github.io/argo-helm
           helm repo update
           
-          # Hash for 'admin' password
+          # Hash for 'admin' password and expose publicly
           cat <<EOF > argocd-values.yaml
           configs:
             secret:
               argocdServerAdminPassword: "\$2a\$10\$rRy5JZsCT661g/OQ7Ttcx.rIIfaH.y9D.Z.bZqV/8.5.Y/f9WvM6O"
+          server:
+            service:
+              type: LoadBalancer
           EOF
           
           helm upgrade --install argocd argo/argo-cd \

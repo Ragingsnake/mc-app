@@ -154,9 +154,9 @@ jobs:
             
         for service in services:
             if service == 'frontend':
-                data['frontend']['image']['tag'] = sha
+                data['frontend']['image']['tag'] = f'frontend-{sha}'
             else:
-                data['microservices'][service]['image']['tag'] = sha
+                data['microservices'][service]['image']['tag'] = f'{service}-{sha}'
             print(f'Updated {service} tag to {sha}')
             
         with open('helm/minecraft-story-app/values.yaml', 'w') as f:
@@ -175,3 +175,4 @@ jobs:
         for i in {1..5}; do
           git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
         done
+
