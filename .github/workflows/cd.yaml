@@ -64,21 +64,14 @@ jobs:
     name: "Bootstrap ArgoCD and Apply Root App"
     needs: terraform
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/azure-cli:latest
+    # container:
+      # image: mcr.microsoft.com/azure-cli:latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Install Dependencies
-        run: |
-          apk add --no-cache curl bash git yq || apt-get update && apt-get install -y curl bash git jq
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-          chmod 700 get_helm.sh
-          ./get_helm.sh
 
       - name: Azure Login
         run: |
