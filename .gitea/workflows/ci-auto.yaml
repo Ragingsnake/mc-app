@@ -6,6 +6,11 @@ on:
       - 'frontend/**'
       - 'backend/**'
   workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to build and tag (e.g. frontend, api-gateway, ai-enhancer). Leave empty to build ALL.'
+        required: false
+        default: ''
 
 env:
   REGISTRY: docker.io/ragingsnake/mc-app
@@ -14,11 +19,13 @@ jobs:
   detect-changes:
     runs-on: self-hosted
     outputs:
-      changes: ${{ steps.filter.outputs.changes }}
+      changes: ${{ steps.set-output.outputs.changes }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: dorny/paths-filter@v3
         id: filter
+        if: github.event_name == 'push'
         with:
           filters: |
             frontend: 'frontend/**'
@@ -30,6 +37,19 @@ jobs:
             endings-gen: 'backend/endings-gen/**'
             story-db-service: 'backend/story-db-service/**'
             ai-enhancer: 'backend/ai-enhancer/**'
+
+      - name: Set changes output
+        id: set-output
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.service }}" ]; then
+              echo 'changes=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
+            else
+              echo 'changes=["frontend","api-gateway","story-orchestrator","scenario-gen","battle-gen","character-gen","endings-gen","story-db-service","ai-enhancer"]' >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "changes=${{ steps.filter.outputs.changes }}" >> $GITHUB_OUTPUT
+          fi
 
   sys-scan:
     needs: detect-changes
@@ -61,7 +81,7 @@ jobs:
 
     - name: Install Docker CLI
       run: |
-        apt-get update && apt-get install -y docker.io
+        apt-get update && apt-get install -y docker.io python3 python3-pip
 
     - name: Lint check
       working-directory: ${{ env.SVC_PATH }}
@@ -110,3 +130,57 @@ jobs:
     - name: Push Docker Image
       run: |
         docker push ${{ env.REGISTRY }}:${{ env.SERVICE }}-${{ github.sha }}
+
+  update-image-tags:
+    needs: [detect-changes, sys-scan]
+    if: ${{ needs.detect-changes.outputs.changes != '[]' && needs.detect-changes.outputs.changes != '' }}
+    runs-on: self-hosted
+    container:
+      image: nikolaik/python-nodejs:python3.10-nodejs20
+
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.changes) }}
+
+    env:
+      SERVICE: ${{ matrix.service }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: |
+        apt-get update && apt-get install -y docker.io python3 python3-pip
+        pip install pyyaml
+
+    - name: Update tag in values.yaml
+      run: |
+        cat << 'EOF' > /tmp/update_tag.py
+        import yaml, sys
+        service = sys.argv[1]
+        sha = sys.argv[2]
+        with open('helm/minecraft-story-app/values.yaml', 'r') as f:
+            data = yaml.safe_load(f)
+        if service == 'frontend':
+            data['frontend']['image']['tag'] = sha
+        else:
+            data['microservices'][service]['image']['tag'] = sha
+        with open('helm/minecraft-story-app/values.yaml', 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+        print(f'Updated {service} tag to {sha}')
+        EOF
+        python3 /tmp/update_tag.py $SERVICE ${{ github.sha }}
+
+    - name: Commit and Push
+      run: |
+        git config user.name "ci-bot"
+        git config user.email "ci@ragingsnake.dev"
+        git add helm/minecraft-story-app/values.yaml
+        git diff --cached --exit-code || git commit -m "ci: update $SERVICE image tag to ${{ github.sha }} [skip ci]"
+        git remote set-url origin http://${{ secrets.GITEA_TOKEN }}@gitea:3000/ragingsnake/story-app.git
+        git push origin HEAD:main

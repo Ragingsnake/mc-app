@@ -1,11 +1,14 @@
-name: "Terraform Deploy"
+name: "Deploy to AKS"
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: "Terraform Deploy"
+  # ============================================================
+  # JOB 1: Provision infrastructure with Terraform
+  # ============================================================
+  terraform:
+    name: "Terraform - Provision AKS"
     runs-on: ubuntu-system
 
     env:
@@ -16,7 +19,13 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./terraform-test
+        working-directory: ./terraform-prod
+
+    outputs:
+      aks_name: ${{ steps.tf-output.outputs.aks_name }}
+      resource_group: ${{ steps.tf-output.outputs.resource_group }}
+      frontend_ip: ${{ steps.tf-output.outputs.frontend_ip }}
+      frontend_fqdn: ${{ steps.tf-output.outputs.frontend_fqdn }}
 
     steps:
       - name: Checkout Code
@@ -26,6 +35,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.0
+          terraform_wrapper: false
 
       - name: Terraform Init
         run: terraform init
@@ -38,3 +48,79 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
+
+      - name: Capture Terraform Outputs
+        id: tf-output
+        run: |
+          echo "aks_name=$(terraform output -raw aks_name)" >> $GITHUB_OUTPUT
+          echo "resource_group=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          echo "frontend_ip=$(terraform output -raw frontend_ip)" >> $GITHUB_OUTPUT
+          echo "frontend_fqdn=$(terraform output -raw frontend_fqdn)" >> $GITHUB_OUTPUT
+
+  # ============================================================
+  # JOB 2: Deploy app with Helm
+  # ============================================================
+  helm-deploy:
+    name: "Helm - Deploy App to AKS"
+    needs: terraform
+    runs-on: ubuntu-system
+    container:
+      image: mcr.microsoft.com/azure-cli:latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            -u ${{ secrets.AZURE_CLIENT_ID }} \
+            -p ${{ secrets.AZURE_CLIENT_SECRET }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ needs.terraform.outputs.resource_group }} \
+            --name ${{ needs.terraform.outputs.aks_name }} \
+            --overwrite-existing
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Create Namespace
+        run: |
+          kubectl create namespace mc-app-prod --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Secrets
+        run: |
+          kubectl create secret generic ai-credentials \
+            --from-literal=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+            --namespace mc-app-prod \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic db-credentials \
+            --from-literal=uri=${{ secrets.DATABASE_URI }} \
+            --from-literal=password=${{ secrets.DB_PASSWORD }} \
+            --namespace mc-app-prod \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Helm Deploy
+        run: |
+          helm upgrade --install mc-app ./helm/minecraft-story-app \
+            --namespace mc-app-prod \
+            --values helm/minecraft-story-app/values.yaml \
+            --values helm/minecraft-story-app/values-prod.yaml \
+            --set frontend.service.loadBalancerIP=${{ needs.terraform.outputs.frontend_ip }} \
+            --atomic \
+            --timeout 5m
+
+      - name: Print Frontend URL
+        run: |
+          echo "=========================================="
+          echo " App deployed!"
+          echo " Frontend URL: http://${{ needs.terraform.outputs.frontend_fqdn }}"
+          echo " Frontend IP:  ${{ needs.terraform.outputs.frontend_ip }}"
+          echo "=========================================="

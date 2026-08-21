@@ -57,3 +57,80 @@ graph TD
 ### Database & Security
 *   **Story DB Service (Flask, Port 5002):** Connects to the database (SQLite for local runs, PostgreSQL in production). It listens for completed stories on `stream:db:request` to cache them in Redis and provides endpoints to comment and rate published stories.
 *   **HashiCorp Vault & ESO:** High-value database credentials are stored securely in Vault. The External Secrets Operator retrieves these secrets and mounts them as native Kubernetes Secrets, which are then injected as environment variables in the deployment container.
+
+---
+
+## CI/CD Pipeline
+
+### Overview
+
+The project uses a **GitOps** workflow powered by Gitea Actions (CI) and **ArgoCD** (CD).
+
+```mermaid
+graph LR
+    DEV[Developer Push] --> CI[Gitea CI - ci-auto.yaml]
+    CI --> LINT[Lint + Security Scan]
+    LINT --> BUILD[Build & Push to DockerHub]
+    BUILD --> TAG[Update image tag in values.yaml]
+    TAG --> GITPUSH[Git push back to repo]
+    GITPUSH --> ARGO[ArgoCD detects change]
+    ARGO --> DEP_DEV[Deploy to mc-app-dev]
+    ARGO --> DEP_PROD[Deploy to mc-app-prod]
+```
+
+### CI Pipeline (`ci-auto.yaml`)
+
+The CI pipeline is **smart**: it only builds the microservice(s) that actually changed using `dorny/paths-filter`. For each changed service, it:
+
+1. **Lints** the code (ESLint/oxlint for frontend, `py_compile` for Python services)
+2. **Scans** with Trivy for CRITICAL/HIGH CVEs
+3. **Builds & Pushes** the Docker image to `ragingsnake/mc-app:<service>-<git-sha>` on DockerHub
+4. **Updates** the image tag in `helm/minecraft-story-app/values.yaml` and commits it back to the repo
+
+### ArgoCD Setup
+
+ArgoCD watches the `helm/minecraft-story-app` directory. When the CI pipeline commits a new image tag, ArgoCD automatically syncs and rolls out the updated deployment.
+
+**Install ArgoCD:**
+```bash
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+```
+
+**Apply Application manifests:**
+```bash
+kubectl apply -f argocd/application-dev.yaml
+kubectl apply -f argocd/application-prod.yaml
+```
+
+---
+
+## Monitoring (Prometheus + Grafana)
+
+The app uses the `kube-prometheus-stack` Helm chart. All microservice pods are annotated with `prometheus.io/scrape: "true"` for automatic metric discovery.
+
+**Install:**
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring --create-namespace \
+  -f monitoring/kube-prometheus-values.yaml
+```
+
+**Access Grafana:** `http://localhost:32300` (NodePort) — default credentials: `admin / admin`
+
+---
+
+## Autoscaling (HPA)
+
+Horizontal Pod Autoscalers are configured via the Helm chart for CPU-based scaling:
+
+| Service | Dev Min/Max | Prod Min/Max | CPU Target |
+|---|---|---|---|
+| api-gateway | 1 / 3 | 2 / 8 | 55–70% |
+| story-orchestrator | 1 / 3 | 2 / 8 | 55–70% |
+| scenario-gen | 1 / 4 | 2 / 10 | 55–70% |
+| battle-gen | 1 / 4 | 2 / 10 | 55–70% |
+| character-gen | 1 / 3 | 2 / 6 | 60–80% |
+
+Scaling is environment-specific via `values-dev.yaml` and `values-prod.yaml`.

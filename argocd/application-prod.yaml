@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minecraft-story-prod
+  namespace: argocd
+  labels:
+    environment: prod
+spec:
+  project: default
+  source:
+    repoURL: http://gitea:3000/ragingsnake/story-app.git
+    targetRevision: main
+    path: helm/minecraft-story-app
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mc-app-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

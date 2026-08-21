@@ -1,1 +1,44 @@
 environment: prod
+
+frontend:
+  replicaCount: 2
+  service:
+    type: LoadBalancer
+
+microservices:
+  api-gateway:
+    replicaCount: 2
+    hpa:
+      minReplicas: 2
+      maxReplicas: 8
+      cpuTargetPercent: 55
+  story-orchestrator:
+    replicaCount: 2
+    hpa:
+      minReplicas: 2
+      maxReplicas: 8
+      cpuTargetPercent: 55
+  scenario-gen:
+    replicaCount: 2
+    hpa:
+      minReplicas: 2
+      maxReplicas: 10
+      cpuTargetPercent: 55
+  battle-gen:
+    replicaCount: 2
+    hpa:
+      minReplicas: 2
+      maxReplicas: 10
+      cpuTargetPercent: 55
+  character-gen:
+    replicaCount: 2
+    hpa:
+      minReplicas: 2
+      maxReplicas: 6
+      cpuTargetPercent: 60
+  ai-enhancer:
+    replicaCount: 2
+  endings-gen:
+    replicaCount: 2
+  story-db-service:
+    replicaCount: 2

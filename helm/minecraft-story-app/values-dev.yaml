@@ -1,1 +1,45 @@
 environment: dev
+
+frontend:
+  replicaCount: 1
+  service:
+    type: NodePort
+    nodePort: 32227
+
+microservices:
+  api-gateway:
+    replicaCount: 1
+    hpa:
+      minReplicas: 1
+      maxReplicas: 3
+      cpuTargetPercent: 70
+  story-orchestrator:
+    replicaCount: 1
+    hpa:
+      minReplicas: 1
+      maxReplicas: 3
+      cpuTargetPercent: 70
+  scenario-gen:
+    replicaCount: 1
+    hpa:
+      minReplicas: 1
+      maxReplicas: 4
+      cpuTargetPercent: 70
+  battle-gen:
+    replicaCount: 1
+    hpa:
+      minReplicas: 1
+      maxReplicas: 4
+      cpuTargetPercent: 70
+  character-gen:
+    replicaCount: 1
+    hpa:
+      minReplicas: 1
+      maxReplicas: 3
+      cpuTargetPercent: 80
+  ai-enhancer:
+    replicaCount: 1
+  endings-gen:
+    replicaCount: 1
+  story-db-service:
+    replicaCount: 1

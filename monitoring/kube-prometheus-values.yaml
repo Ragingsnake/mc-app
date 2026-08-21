@@ -1,0 +1,79 @@
+# Kube-Prometheus-Stack values for Minecraft Story App monitoring
+# Install with:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace \
+#     -f monitoring/kube-prometheus-values.yaml
+
+prometheus:
+  prometheusSpec:
+    # Scrape interval
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    # Auto-discover all pods with prometheus.io/scrape=true annotation
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    additionalScrapeConfigs:
+      - job_name: 'mc-app-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - mc-app
+                - mc-app-dev
+                - mc-app-prod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.*)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+grafana:
+  enabled: true
+  adminPassword: "admin"  # CHANGE THIS in production
+  service:
+    type: NodePort
+    nodePort: 32300
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'mc-app'
+          orgId: 1
+          folder: 'Minecraft Story App'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/mc-app
+  dashboards:
+    mc-app:
+      minecraft-story-overview:
+        gnetId: 6417  # Kubernetes cluster overview dashboard
+        revision: 1
+        datasource: Prometheus
+
+alertmanager:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true

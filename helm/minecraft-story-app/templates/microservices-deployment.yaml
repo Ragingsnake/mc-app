@@ -19,6 +19,10 @@ spec:
     metadata:
       labels:
         app: {{ $name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ $config.port }}"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: {{ $name }}

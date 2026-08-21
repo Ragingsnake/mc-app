@@ -1,31 +1,24 @@
-apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
+{{- range $name, $config := .Values.microservices }}
+{{- if $config.hpa }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
-  name: scenario-gen-scaler
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-hpa
+  namespace: {{ $.Release.Namespace }}
 spec:
   scaleTargetRef:
-    name: scenario-gen
-  minReplicaCount: 2
-  maxReplicaCount: 5
-  triggers:
-  - type: cpu
-    metricType: Utilization
-    metadata:
-      value: "50"
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $config.hpa.minReplicas | default 1 }}
+  maxReplicas: {{ $config.hpa.maxReplicas | default 5 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $config.hpa.cpuTargetPercent | default 60 }}
 ---
-apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
-metadata:
-  name: battle-gen-scaler
-  namespace: {{ .Release.Namespace }}
-spec:
-  scaleTargetRef:
-    name: battle-gen
-  minReplicaCount: 2
-  maxReplicaCount: 5
-  triggers:
-  - type: cpu
-    metadata:
-      type: Utilization
-      value: "50"
+{{- end }}
+{{- end }}
