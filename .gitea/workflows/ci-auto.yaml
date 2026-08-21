@@ -57,10 +57,10 @@ jobs:
     runs-on: self-hosted
     container:
       image: nikolaik/python-nodejs:python3.10-nodejs20
-    
+
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 1
       matrix:
         service: ${{ fromJSON(needs.detect-changes.outputs.changes) }}
 
@@ -79,23 +79,29 @@ jobs:
           echo "SVC_PATH=./backend/$SERVICE" >> $GITHUB_ENV
         fi
 
-    - name: Install Docker CLI
+    - name: Install tools
       run: |
         apt-get update && apt-get install -y docker.io python3 python3-pip
 
-    - name: Lint check
+    - name: Lint check (frontend)
+      if: env.SERVICE == 'frontend'
       working-directory: ${{ env.SVC_PATH }}
       run: |
-        if [ "$SERVICE" = "frontend" ]; then
-          rm -rf node_modules package-lock.json
-          npm install
-          npm install @oxlint/binding-linux-x64-gnu
-          npm run lint
-          npm run build
-        else
-          python -m py_compile app.py
-        fi
-    
+        rm -rf node_modules package-lock.json
+        npm install
+        npm install @oxlint/binding-linux-x64-gnu
+        npm run lint
+
+    - name: Build check (frontend)
+      if: env.SERVICE == 'frontend'
+      working-directory: ${{ env.SVC_PATH }}
+      run: npm run build
+
+    - name: Lint check (Python)
+      if: env.SERVICE != 'frontend'
+      working-directory: ${{ env.SVC_PATH }}
+      run: python -m py_compile app.py
+
     - name: Trivy Filesystem Scan (The Docker Way)
       working-directory: ${{ env.SVC_PATH }}
       run: |
@@ -104,7 +110,7 @@ jobs:
         COPY . /app-to-scan
         WORKDIR /app-to-scan
         EOF
-        
+
         docker build -f Dockerfile.trivy -t disposable-trivy-scanner-$SERVICE .
         docker run --rm \
           -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
@@ -185,7 +191,8 @@ jobs:
         # Only commit if there's actually a change
         git diff --cached --exit-code && echo "No change, skipping." && exit 0
         git commit -m "ci: update $SERVICE image tag to ${{ github.sha }} [skip ci]"
-        # Pull rebase in case another matrix job pushed just before us with retry logic
+        # Retry with rebase in case a sibling job pushed just before us
         for i in {1..5}; do
           git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
         done
+
