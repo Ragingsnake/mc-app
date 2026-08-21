@@ -28,11 +28,8 @@ jobs:
           
           # Check if the resource group exists
           if az group show --name "$RG_NAME" > /dev/null 2>&1; then
-            echo "Deleting all resources by deleting and recreating the Resource Group..."
-            LOCATION=$(az group show --name "$RG_NAME" --query location -o tsv)
+            echo "Deleting Resource Group $RG_NAME..."
             az group delete --name "$RG_NAME" --yes
-            echo "Resource Group deleted. Recreating clean Resource Group in $LOCATION..."
-            az group create --name "$RG_NAME" --location "$LOCATION"
             echo "Wipe complete!"
           else
             echo "Resource Group $RG_NAME does not exist. Nothing to wipe."
