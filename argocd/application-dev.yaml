@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: http://gitea:3000/ragingsnake/story-app.git  # UPDATE THIS to your actual Gitea repo URL
+    repoURL: https://git.digital-easy.link:5000/TranBuiNhatNguyen/story-app.git
     targetRevision: main
     path: helm/minecraft-story-app
     helm:
