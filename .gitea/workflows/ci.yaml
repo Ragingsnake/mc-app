@@ -58,11 +58,11 @@ jobs:
         WORKDIR /app-to-scan
         EOF
         
-        docker build -f Dockerfile.trivy -t disposable-trivy-scanner .
+        docker build -f Dockerfile.trivy -t disposable-trivy-scanner-${{ matrix.service.name }} .
         docker run --rm \
           -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
           -e TRIVY_INSECURE=true \
-          disposable-trivy-scanner fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
+          disposable-trivy-scanner-${{ matrix.service.name }} fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
 
     - name: Log in to Docker Hub
       run: |
@@ -83,3 +83,67 @@ jobs:
     - name: Push Docker Image
       run: |
         docker push ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }}
+
+  update-image-tags:
+    needs: sys-scan
+    runs-on: self-hosted
+    container:
+      image: nikolaik/python-nodejs:python3.10-nodejs20
+
+    strategy:
+      fail-fast: false
+      max-parallel: 1  # MUST be 1 - prevents simultaneous pushes causing git conflicts
+      matrix:
+        service:
+          - frontend
+          - api-gateway
+          - story-orchestrator
+          - scenario-gen
+          - battle-gen
+          - character-gen
+          - endings-gen
+          - story-db-service
+          - ai-enhancer
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: |
+        apt-get update && apt-get install -y python3 python3-pip
+        pip install pyyaml
+
+    - name: Update tag in values.yaml
+      run: |
+        cat << 'EOF' > /tmp/update_tag.py
+        import yaml, sys
+        service = sys.argv[1]
+        sha = sys.argv[2]
+        with open('helm/minecraft-story-app/values.yaml', 'r') as f:
+            data = yaml.safe_load(f)
+        if service == 'frontend':
+            data['frontend']['image']['tag'] = sha
+        else:
+            data['microservices'][service]['image']['tag'] = sha
+        with open('helm/minecraft-story-app/values.yaml', 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+        print(f'Updated {service} tag to {sha}')
+        EOF
+        python3 /tmp/update_tag.py ${{ matrix.service }} ${{ github.sha }}
+
+    - name: Commit and Push
+      run: |
+        git config user.name "ci-bot"
+        git config user.email "ci@ragingsnake.dev"
+        git remote set-url origin http://${{ secrets.GTEA_TOKEN }}@git.digital-easy.link:5000/TranBuiNhatNguyen/story-app.git
+        git add helm/minecraft-story-app/values.yaml
+        # Only commit if there's actually a change
+        git diff --cached --exit-code && echo "No change, skipping." && exit 0
+        git commit -m "ci: update ${{ matrix.service }} image tag to ${{ github.sha }} [skip ci]"
+        # Retry with rebase in case a sibling job pushed just before us
+        for i in {1..5}; do
+          git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
+        done

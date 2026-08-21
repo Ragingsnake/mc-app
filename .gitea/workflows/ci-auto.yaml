@@ -140,7 +140,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 1  # MUST be 1 - prevents simultaneous pushes causing git conflicts
       matrix:
         service: ${{ fromJSON(needs.detect-changes.outputs.changes) }}
 
@@ -155,7 +155,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        apt-get update && apt-get install -y docker.io python3 python3-pip
+        apt-get update && apt-get install -y python3 python3-pip
         pip install pyyaml
 
     - name: Update tag in values.yaml
@@ -180,7 +180,12 @@ jobs:
       run: |
         git config user.name "ci-bot"
         git config user.email "ci@ragingsnake.dev"
+        git remote set-url origin http://${{ secrets.GTEA_TOKEN }}@git.digital-easy.link:5000/TranBuiNhatNguyen/story-app.git
         git add helm/minecraft-story-app/values.yaml
-        git diff --cached --exit-code || git commit -m "ci: update $SERVICE image tag to ${{ github.sha }} [skip ci]"
-        git remote set-url origin http://${{ secrets.GITEA_TOKEN }}@gitea:3000/ragingsnake/story-app.git
-        git push origin HEAD:main
+        # Only commit if there's actually a change
+        git diff --cached --exit-code && echo "No change, skipping." && exit 0
+        git commit -m "ci: update $SERVICE image tag to ${{ github.sha }} [skip ci]"
+        # Pull rebase in case another matrix job pushed just before us with retry logic
+        for i in {1..5}; do
+          git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
+        done
