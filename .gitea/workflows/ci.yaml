@@ -11,99 +11,78 @@ jobs:
     runs-on: self-hosted
     container:
       image: nikolaik/python-nodejs:python3.10-nodejs20
-    
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        service:
-          - { name: "frontend", path: "./frontend" }
-          - { name: "api-gateway", path: "./backend/api-gateway" }
-          - { name: "story-orchestrator", path: "./backend/story-orchestrator" }
-          - { name: "scenario-gen", path: "./backend/scenario-gen" }
-          - { name: "battle-gen", path: "./backend/battle-gen" }
-          - { name: "character-gen", path: "./backend/character-gen" }
-          - { name: "endings-gen", path: "./backend/endings-gen" }
-          - { name: "story-db-service", path: "./backend/story-db-service" }
-          - { name: "ai-enhancer", path: "./backend/ai-enhancer" }
 
     steps:
     - name: Pull repo
       uses: actions/checkout@v4
 
-    - name: Install Docker CLI
+    - name: Install tools
       run: |
-        apt-get update && apt-get install -y docker.io
-
-    - name: Lint check
-      working-directory: ${{ matrix.service.path }}
-      run: |
-        if [ "${{ matrix.service.name }}" = "frontend" ]; then
-          rm -rf node_modules package-lock.json
-          npm install
-          npm install @oxlint/binding-linux-x64-gnu
-          npm run lint
-          npm run build
-        else
-          python -m py_compile app.py
-        fi
-    
-    - name: Trivy Filesystem Scan (The Docker Way)
-      working-directory: ${{ matrix.service.path }}
-      run: |
-        # Blame Bosch for making me do this
-        cat <<EOF > Dockerfile.trivy
-        FROM aquasec/trivy:latest
-        COPY . /app-to-scan
-        WORKDIR /app-to-scan
-        EOF
-        
-        docker build -f Dockerfile.trivy -t disposable-trivy-scanner-${{ matrix.service.name }} .
-        docker run --rm \
-          -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
-          -e TRIVY_INSECURE=true \
-          disposable-trivy-scanner-${{ matrix.service.name }} fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
+        apt-get update && apt-get install -y docker.io python3 python3-pip
 
     - name: Log in to Docker Hub
       run: |
         echo "${{ secrets.DOCKER_PAT }}" | docker login -u "ragingsnake" --password-stdin
 
-    - name: Build Docker Image
-      working-directory: ${{ matrix.service.path }}
+    - name: Sequential Build and Scan
       run: |
-        docker build \
-          --build-arg HTTP_PROXY=$HTTP_PROXY \
-          --build-arg HTTPS_PROXY=$HTTPS_PROXY \
-          --build-arg NO_PROXY=$NO_PROXY \
-          --build-arg http_proxy=$http_proxy \
-          --build-arg https_proxy=$https_proxy \
-          --build-arg no_proxy=$no_proxy \
-          -t ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }} .
+        SERVICES="frontend api-gateway story-orchestrator scenario-gen battle-gen character-gen endings-gen story-db-service ai-enhancer"
+        for SERVICE in $SERVICES; do
+          echo "========================================"
+          echo " Processing $SERVICE"
+          echo "========================================"
+          
+          if [ "$SERVICE" = "frontend" ]; then
+            SVC_PATH="frontend"
+            (
+              cd $SVC_PATH
+              rm -rf node_modules package-lock.json
+              npm install
+              npm install @oxlint/binding-linux-x64-gnu
+              npm run lint
+              npm run build
+            )
+          else
+            SVC_PATH="backend/$SERVICE"
+            (
+              cd $SVC_PATH
+              python3 -m py_compile app.py
+            )
+          fi
 
-    - name: Push Docker Image
-      run: |
-        docker push ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }}
+          (
+            cd $SVC_PATH
+            
+            # Trivy scan
+            cat <<EOF > Dockerfile.trivy
+        FROM aquasec/trivy:latest
+        COPY . /app-to-scan
+        WORKDIR /app-to-scan
+        EOF
+            docker build -f Dockerfile.trivy -t disposable-trivy-scanner-$SERVICE .
+            docker run --rm \
+              -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
+              -e TRIVY_INSECURE=true \
+              disposable-trivy-scanner-$SERVICE fs --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --severity CRITICAL,HIGH --exit-code 1 .
+            
+            # Build and Push
+            docker build \
+              --build-arg HTTP_PROXY=$HTTP_PROXY \
+              --build-arg HTTPS_PROXY=$HTTPS_PROXY \
+              --build-arg NO_PROXY=$NO_PROXY \
+              --build-arg http_proxy=$http_proxy \
+              --build-arg https_proxy=$https_proxy \
+              --build-arg no_proxy=$no_proxy \
+              -t ${{ env.REGISTRY }}:$SERVICE-${{ github.sha }} .
+            docker push ${{ env.REGISTRY }}:$SERVICE-${{ github.sha }}
+          )
+        done
 
   update-image-tags:
     needs: sys-scan
     runs-on: self-hosted
     container:
       image: nikolaik/python-nodejs:python3.10-nodejs20
-
-    strategy:
-      fail-fast: false
-      max-parallel: 1  # MUST be 1 - prevents simultaneous pushes causing git conflicts
-      matrix:
-        service:
-          - frontend
-          - api-gateway
-          - story-orchestrator
-          - scenario-gen
-          - battle-gen
-          - character-gen
-          - endings-gen
-          - story-db-service
-          - ai-enhancer
 
     steps:
     - name: Checkout
@@ -116,23 +95,27 @@ jobs:
         apt-get update && apt-get install -y python3 python3-pip
         pip install pyyaml
 
-    - name: Update tag in values.yaml
+    - name: Update tags in values.yaml
       run: |
-        cat << 'EOF' > /tmp/update_tag.py
+        cat << 'EOF' > /tmp/update_tags.py
         import yaml, sys
-        service = sys.argv[1]
-        sha = sys.argv[2]
+        sha = sys.argv[1]
+        services = ['frontend', 'api-gateway', 'story-orchestrator', 'scenario-gen', 'battle-gen', 'character-gen', 'endings-gen', 'story-db-service', 'ai-enhancer']
+        
         with open('helm/minecraft-story-app/values.yaml', 'r') as f:
             data = yaml.safe_load(f)
-        if service == 'frontend':
-            data['frontend']['image']['tag'] = sha
-        else:
-            data['microservices'][service]['image']['tag'] = sha
+            
+        for service in services:
+            if service == 'frontend':
+                data['frontend']['image']['tag'] = sha
+            else:
+                data['microservices'][service]['image']['tag'] = sha
+            print(f'Updated {service} tag to {sha}')
+            
         with open('helm/minecraft-story-app/values.yaml', 'w') as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
-        print(f'Updated {service} tag to {sha}')
         EOF
-        python3 /tmp/update_tag.py ${{ matrix.service }} ${{ github.sha }}
+        python3 /tmp/update_tags.py ${{ github.sha }}
 
     - name: Commit and Push
       run: |
@@ -142,8 +125,8 @@ jobs:
         git add helm/minecraft-story-app/values.yaml
         # Only commit if there's actually a change
         git diff --cached --exit-code && echo "No change, skipping." && exit 0
-        git commit -m "ci: update ${{ matrix.service }} image tag to ${{ github.sha }} [skip ci]"
-        # Retry with rebase in case a sibling job pushed just before us
+        git commit -m "ci: update image tags to ${{ github.sha }} [skip ci]"
+        # Pull rebase in case another workflow pushed just before us
         for i in {1..5}; do
           git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
         done
