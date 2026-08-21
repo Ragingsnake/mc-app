@@ -58,10 +58,10 @@ jobs:
           echo "frontend_fqdn=$(terraform output -raw frontend_fqdn)" >> $GITHUB_OUTPUT
 
   # ============================================================
-  # JOB 2: Deploy app with Helm
+  # JOB 2: Bootstrap ArgoCD and Cluster
   # ============================================================
-  helm-deploy:
-    name: "Helm - Deploy App to AKS"
+  bootstrap-argocd:
+    name: "Bootstrap ArgoCD and Apply Root App"
     needs: terraform
     runs-on: ubuntu-latest
     container:
@@ -70,6 +70,15 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        run: |
+          apk add --no-cache curl bash git yq || apt-get update && apt-get install -y curl bash git jq
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
 
       - name: Azure Login
         run: |
@@ -86,41 +95,72 @@ jobs:
             --name ${{ needs.terraform.outputs.aks_name }} \
             --overwrite-existing
 
-      - name: Install Helm
+      - name: Install NGINX Ingress Controller
         run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          
+          echo "Installing NGINX Ingress on static IP: ${{ needs.terraform.outputs.frontend_ip }}"
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --set controller.service.loadBalancerIP=${{ needs.terraform.outputs.frontend_ip }} \
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+            --wait \
+            --timeout 5m
 
-      - name: Create Namespace
+      - name: Pre-create Namespaces and Secrets
         run: |
+          # Create namespaces before ArgoCD tries to deploy into them
           kubectl create namespace mc-app-prod --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace mc-app-dev --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Create Secrets
-        run: |
+          # Create secrets in prod
           kubectl create secret generic ai-credentials \
             --from-literal=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
-            --namespace mc-app-prod \
-            --dry-run=client -o yaml | kubectl apply -f -
-
+            --namespace mc-app-prod --dry-run=client -o yaml | kubectl apply -f -
           kubectl create secret generic db-credentials \
             --from-literal=uri=${{ secrets.DATABASE_URI }} \
             --from-literal=password=${{ secrets.DB_PASSWORD }} \
-            --namespace mc-app-prod \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --namespace mc-app-prod --dry-run=client -o yaml | kubectl apply -f -
+            
+          # Create secrets in dev
+          kubectl create secret generic ai-credentials \
+            --from-literal=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+            --namespace mc-app-dev --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic db-credentials \
+            --from-literal=uri=${{ secrets.DATABASE_URI }} \
+            --from-literal=password=${{ secrets.DB_PASSWORD }} \
+            --namespace mc-app-dev --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Helm Deploy
+      - name: Install ArgoCD via Helm
         run: |
-          helm upgrade --install mc-app ./helm/minecraft-story-app \
-            --namespace mc-app-prod \
-            --values helm/minecraft-story-app/values.yaml \
-            --values helm/minecraft-story-app/values-prod.yaml \
-            --set frontend.service.loadBalancerIP=${{ needs.terraform.outputs.frontend_ip }} \
-            --atomic \
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update
+          
+          # Hash for 'admin' password
+          cat <<EOF > argocd-values.yaml
+          configs:
+            secret:
+              argocdServerAdminPassword: "\$2a\$10\$rRy5JZsCT661g/OQ7Ttcx.rIIfaH.y9D.Z.bZqV/8.5.Y/f9WvM6O"
+          EOF
+          
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace argocd \
+            --create-namespace \
+            -f argocd-values.yaml \
+            --wait \
             --timeout 5m
 
-      - name: Print Frontend URL
+      - name: Apply Root App (App of Apps)
+        run: |
+          kubectl apply -f argocd/root-app.yaml
+
+      - name: Print Endpoints
         run: |
           echo "=========================================="
-          echo " App deployed!"
+          echo " AKS Provisioned and ArgoCD Bootstrapped!"
           echo " Frontend URL: http://${{ needs.terraform.outputs.frontend_fqdn }}"
           echo " Frontend IP:  ${{ needs.terraform.outputs.frontend_ip }}"
+          echo " ArgoCD is deploying the rest of the stack via GitOps."
           echo "=========================================="

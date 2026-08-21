@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  labels:
+    environment: cluster-ops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Ragingsnake/mc-app.git
+    targetRevision: main
+    path: argocd
+    directory:
+      recurse: false
+      exclude: 'root-app.yaml' # Prevent it from trying to manage itself in a weird loop
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
