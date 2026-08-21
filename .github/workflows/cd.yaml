@@ -9,7 +9,7 @@ jobs:
   # ============================================================
   terraform:
     name: "Terraform - Provision AKS"
-    runs-on: ubuntu-system
+    runs-on: ubuntu-latest
 
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -63,7 +63,7 @@ jobs:
   helm-deploy:
     name: "Helm - Deploy App to AKS"
     needs: terraform
-    runs-on: ubuntu-system
+    runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/azure-cli:latest
 

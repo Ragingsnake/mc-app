@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://git.digital-easy.link:5000/TranBuiNhatNguyen/story-app.git
+    repoURL: https://github.com/Ragingsnake/mc-app.git
     targetRevision: main
     path: helm/minecraft-story-app
     helm:

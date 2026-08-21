@@ -1,5 +1,8 @@
 name: CI Chain (Smart)
 
+permissions:
+  contents: write
+
 on:
   push:
     paths:
@@ -8,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'Service to build and tag (e.g. frontend, api-gateway, ai-enhancer). Leave empty to build ALL.'
+        description: 'Service to build and tag (e.g. frontend, api-gateway). Leave empty to build ALL.'
         required: false
         default: ''
 
@@ -17,7 +20,7 @@ env:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-system
+    runs-on: ubuntu-latest
     outputs:
       changes: ${{ steps.set-output.outputs.changes }}
     steps:
@@ -54,89 +57,78 @@ jobs:
   sys-scan:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.changes != '[]' && needs.detect-changes.outputs.changes != '' }}
-    runs-on: ubuntu-system
-    container:
-      image: nikolaik/python-nodejs:python3.10-nodejs20
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.changes) }}
 
     env:
-      CHANGES_JSON: ${{ needs.detect-changes.outputs.changes }}
+      SERVICE: ${{ matrix.service }}
 
     steps:
     - name: Pull repo
       uses: actions/checkout@v4
 
-    - name: Install tools
+    - name: Set working directory path
       run: |
-        apt-get update && apt-get install -y docker.io python3 python3-pip jq
+        if [ "$SERVICE" = "frontend" ]; then
+          echo "SVC_PATH=./frontend" >> $GITHUB_ENV
+        else
+          echo "SVC_PATH=./backend/$SERVICE" >> $GITHUB_ENV
+        fi
+
+    - name: Lint check (frontend)
+      if: env.SERVICE == 'frontend'
+      working-directory: ${{ env.SVC_PATH }}
+      run: |
+        npm install
+        npm install @oxlint/binding-linux-x64-gnu
+        npx oxlint
+
+    - name: Build check (frontend)
+      if: env.SERVICE == 'frontend'
+      working-directory: ${{ env.SVC_PATH }}
+      run: npm run build
+
+    - name: Lint check (Python)
+      if: env.SERVICE != 'frontend'
+      working-directory: ${{ env.SVC_PATH }}
+      run: python -m py_compile app.py
+
+    - name: Trivy Filesystem Scan
+      working-directory: ${{ env.SVC_PATH }}
+      run: |
+        cat <<EOF > Dockerfile.trivy
+        FROM aquasec/trivy:latest
+        COPY . /app-to-scan
+        WORKDIR /app-to-scan
+        EOF
+        
+        docker build -f Dockerfile.trivy -t disposable-trivy-scanner-$SERVICE .
+        docker run --rm disposable-trivy-scanner-$SERVICE fs \
+          --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+          --severity CRITICAL,HIGH \
+          --exit-code 1 .
 
     - name: Log in to Docker Hub
       run: |
         echo "${{ secrets.DOCKER_PAT }}" | docker login -u "ragingsnake" --password-stdin
 
-    - name: Sequential Build and Scan
+    - name: Build Docker Image
+      working-directory: ${{ env.SVC_PATH }}
       run: |
-        SERVICES=$(echo $CHANGES_JSON | jq -r '.[]')
-        for SERVICE in $SERVICES; do
-          echo "========================================"
-          echo " Processing $SERVICE"
-          echo "========================================"
-          
-          if [ "$SERVICE" = "frontend" ]; then
-            SVC_PATH="frontend"
-            (
-              cd $SVC_PATH
-              rm -rf node_modules package-lock.json
-              npm install
-              npm install @oxlint/binding-linux-x64-gnu
-              npm run lint
-              npm run build
-            )
-          else
-            SVC_PATH="backend/$SERVICE"
-            (
-              cd $SVC_PATH
-              python3 -m py_compile app.py
-            )
-          fi
+        docker build -t ${{ env.REGISTRY }}:${{ env.SERVICE }}-${{ github.sha }} .
 
-          (
-            cd $SVC_PATH
-            
-            # Trivy scan
-            cat <<EOF > Dockerfile.trivy
-        FROM aquasec/trivy:latest
-        COPY . /app-to-scan
-        WORKDIR /app-to-scan
-        EOF
-            docker build -f Dockerfile.trivy -t disposable-trivy-scanner-$SERVICE .
-            docker run --rm \
-              -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
-              -e TRIVY_INSECURE=true \
-              disposable-trivy-scanner-$SERVICE fs \
-              --db-repository ghcr.io/aquasecurity/trivy-db:2 \
-              --timeout 15m \
-              --severity CRITICAL,HIGH \
-              --exit-code 1 .
-            
-            # Build and Push
-            docker build \
-              --build-arg HTTP_PROXY=$HTTP_PROXY \
-              --build-arg HTTPS_PROXY=$HTTPS_PROXY \
-              --build-arg NO_PROXY=$NO_PROXY \
-              --build-arg http_proxy=$http_proxy \
-              --build-arg https_proxy=$https_proxy \
-              --build-arg no_proxy=$no_proxy \
-              -t ${{ env.REGISTRY }}:$SERVICE-${{ github.sha }} .
-            docker push ${{ env.REGISTRY }}:$SERVICE-${{ github.sha }}
-          )
-        done
+    - name: Push Docker Image
+      run: |
+        docker push ${{ env.REGISTRY }}:${{ env.SERVICE }}-${{ github.sha }}
 
   update-image-tags:
     needs: [detect-changes, sys-scan]
     if: ${{ needs.detect-changes.outputs.changes != '[]' && needs.detect-changes.outputs.changes != '' }}
-    runs-on: ubuntu-system
-    container:
-      image: nikolaik/python-nodejs:python3.10-nodejs20
+    runs-on: ubuntu-latest
 
     env:
       CHANGES_JSON: ${{ needs.detect-changes.outputs.changes }}
@@ -148,9 +140,7 @@ jobs:
         fetch-depth: 0
 
     - name: Install dependencies
-      run: |
-        apt-get update && apt-get install -y python3 python3-pip
-        pip install pyyaml
+      run: pip install pyyaml
 
     - name: Update tags in values.yaml
       run: |
@@ -176,14 +166,12 @@ jobs:
 
     - name: Commit and Push
       run: |
-        git config user.name "ci-bot"
-        git config user.email "ci@ragingsnake.dev"
-        git remote set-url origin http://${{ secrets.GTEA_TOKEN }}@git.digital-easy.link:5000/TranBuiNhatNguyen/story-app.git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         git add helm/minecraft-story-app/values.yaml
-        # Only commit if there's actually a change
         git diff --cached --exit-code && echo "No change, skipping." && exit 0
         git commit -m "ci: update image tags to ${{ github.sha }} [skip ci]"
-        # Pull rebase in case another workflow pushed just before us
         for i in {1..5}; do
           git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
         done

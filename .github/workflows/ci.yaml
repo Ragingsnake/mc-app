@@ -1,0 +1,119 @@
+name: CI Chain
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io/ragingsnake/mc-app
+
+jobs:
+  sys-scan:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: "frontend", path: "./frontend" }
+          - { name: "api-gateway", path: "./backend/api-gateway" }
+          - { name: "story-orchestrator", path: "./backend/story-orchestrator" }
+          - { name: "scenario-gen", path: "./backend/scenario-gen" }
+          - { name: "battle-gen", path: "./backend/battle-gen" }
+          - { name: "character-gen", path: "./backend/character-gen" }
+          - { name: "endings-gen", path: "./backend/endings-gen" }
+          - { name: "story-db-service", path: "./backend/story-db-service" }
+          - { name: "ai-enhancer", path: "./backend/ai-enhancer" }
+
+    steps:
+    - name: Pull repo
+      uses: actions/checkout@v4
+
+    - name: Lint check
+      working-directory: ${{ matrix.service.path }}
+      run: |
+        if [ "${{ matrix.service.name }}" = "frontend" ]; then
+          npm install
+          npm install @oxlint/binding-linux-x64-gnu
+          npx oxlint
+          npm run build
+        else
+          python -m py_compile app.py
+        fi
+    
+    - name: Trivy Filesystem Scan
+      working-directory: ${{ matrix.service.path }}
+      run: |
+        cat <<EOF > Dockerfile.trivy
+        FROM aquasec/trivy:latest
+        COPY . /app-to-scan
+        WORKDIR /app-to-scan
+        EOF
+        
+        docker build -f Dockerfile.trivy -t disposable-trivy-scanner-${{ matrix.service.name }} .
+        docker run --rm disposable-trivy-scanner-${{ matrix.service.name }} fs \
+          --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+          --severity CRITICAL,HIGH \
+          --exit-code 1 .
+
+    - name: Log in to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_PAT }}" | docker login -u "ragingsnake" --password-stdin
+
+    - name: Build Docker Image
+      working-directory: ${{ matrix.service.path }}
+      run: |
+        docker build -t ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }} .
+
+    - name: Push Docker Image
+      run: |
+        docker push ${{ env.REGISTRY }}:${{ matrix.service.name }}-${{ github.sha }}
+
+  update-image-tags:
+    needs: sys-scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: pip install pyyaml
+
+    - name: Update tags in values.yaml
+      run: |
+        cat << 'EOF' > /tmp/update_tags.py
+        import yaml, sys
+        sha = sys.argv[1]
+        services = ['frontend', 'api-gateway', 'story-orchestrator', 'scenario-gen', 'battle-gen', 'character-gen', 'endings-gen', 'story-db-service', 'ai-enhancer']
+        
+        with open('helm/minecraft-story-app/values.yaml', 'r') as f:
+            data = yaml.safe_load(f)
+            
+        for service in services:
+            if service == 'frontend':
+                data['frontend']['image']['tag'] = sha
+            else:
+                data['microservices'][service]['image']['tag'] = sha
+            print(f'Updated {service} tag to {sha}')
+            
+        with open('helm/minecraft-story-app/values.yaml', 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+        EOF
+        python3 /tmp/update_tags.py ${{ github.sha }}
+
+    - name: Commit and Push
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        git add helm/minecraft-story-app/values.yaml
+        git diff --cached --exit-code && echo "No change, skipping." && exit 0
+        git commit -m "ci: update image tags to ${{ github.sha }} [skip ci]"
+        for i in {1..5}; do
+          git pull --rebase origin main && git push origin HEAD:main && break || sleep 5
+        done
